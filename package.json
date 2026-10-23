@@ -1,0 +1,41 @@
+{
+  "name": "coffer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coffer command runner for independent frontend and backend projects",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "dev": "pnpm --dir frontend dev & pnpm --dir backend dev & wait",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "dev:backend": "pnpm --dir backend dev",
+    "build": "pnpm --dir frontend build && pnpm --dir backend build",
+    "lint": "pnpm --dir frontend lint && pnpm --dir backend lint",
+    "format:check": "pnpm --dir frontend format:check && pnpm --dir backend format:check",
+    "typecheck": "pnpm --dir frontend typecheck && pnpm --dir backend typecheck",
+    "test": "pnpm --dir backend test",
+    "test:coverage": "pnpm --dir backend test:cov",
+    "test:integration": "pnpm --dir backend test:integration",
+    "test:e2e": "pnpm --dir backend test:e2e",
+    "test:security": "pnpm --dir backend test:security",
+    "test:critical": "pnpm --dir backend test:critical",
+    "test:performance": "pnpm --dir backend test:performance",
+    "security:scan": "node scripts/security-scan.mjs",
+    "openapi:generate": "pnpm --dir backend openapi:generate",
+    "openapi:check": "pnpm --dir backend openapi:check",
+    "db:generate": "pnpm --dir backend prisma:generate",
+    "db:migrate": "pnpm --dir backend prisma:migrate",
+    "db:migrate:deploy": "pnpm --dir backend prisma:migrate:deploy",
+    "db:seed:synthetic": "pnpm --dir backend prisma:seed",
+    "db:reset:local": "pnpm --dir backend prisma:reset:local",
+    "contracts:fmt": "cargo fmt --manifest-path contracts/near-policy/Cargo.toml --check && cargo fmt --manifest-path contracts/test-token/Cargo.toml --check",
+    "contracts:lint": "cargo clippy --manifest-path contracts/near-policy/Cargo.toml --all-targets --locked -- -D warnings && cargo clippy --manifest-path contracts/test-token/Cargo.toml --all-targets --locked -- -D warnings",
+    "contracts:interface-test": "node --test contracts/near-policy/ts/proposal-digest.test.ts",
+    "contracts:test": "cargo test --manifest-path contracts/near-policy/Cargo.toml --locked && cargo test --manifest-path contracts/test-token/Cargo.toml --locked",
+    "contracts:check": "cargo check --manifest-path contracts/near-policy/Cargo.toml --target wasm32-unknown-unknown --locked && cargo check --manifest-path contracts/test-token/Cargo.toml --target wasm32-unknown-unknown --locked",
+    "contracts:build": "cargo near build non-reproducible-wasm --manifest-path contracts/near-policy/Cargo.toml --locked && cargo near build non-reproducible-wasm --manifest-path contracts/test-token/Cargo.toml --locked",
+    "contracts:verify-artifacts": "node contracts/verify-artifacts.mjs"
+  }
+}
