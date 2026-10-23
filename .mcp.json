@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nearDocs": {
+      "type": "http",
+      "url": "https://docs.near.org/mcp"
+    }
+  }
+}
