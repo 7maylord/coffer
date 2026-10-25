@@ -1,0 +1,950 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  OWNER
+  FINANCE_ADMIN
+  APPROVER
+  AGENT_OPERATOR
+  EMPLOYEE
+  AUDITOR
+  VIEWER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  EXPIRED
+  VOID
+  PAID
+}
+
+enum PaymentStatus {
+  CREATED
+  QUOTED
+  AWAITING_AUTHORIZATION
+  AWAITING_DEPOSIT
+  DEPOSIT_OBSERVED
+  PROCESSING
+  SETTLED
+  REFUND_PENDING
+  REFUNDED
+  FAILED
+  EXPIRED
+  UNDERFUNDED
+  UNKNOWN_REQUIRES_RECONCILIATION
+}
+
+enum PayrollBatchStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PROCESSING
+  SETTLED
+  FAILED
+}
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum LedgerNormalSide {
+  DEBIT
+  CREDIT
+}
+
+enum JournalSide {
+  DEBIT
+  CREDIT
+}
+
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+  EXPIRED
+}
+
+enum SettlementPostingKind {
+  SETTLEMENT
+  REFUND
+}
+
+enum ReconciliationStatus {
+  OPEN
+  RESOLVED
+}
+
+enum PolicyDecisionOutcome {
+  ALLOW
+  DENY
+  REQUIRES_APPROVAL
+}
+
+enum FinancialProposalStatus {
+  PENDING
+  APPROVED
+  CANCELLED
+  EXPIRED
+  SUPERSEDED
+  STALE_POLICY
+}
+
+enum CfoInferenceStatus {
+  VALIDATED
+  INVALID
+  FAILED
+}
+
+enum CfoProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AgentStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AgentPurchaseStatus {
+  CLAIMED
+  AWAITING_APPROVAL
+  COMPLETED
+  DENIED
+  FAILED
+}
+
+model User {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  email                  String?                 @unique
+  displayName            String
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  memberships            Membership[]
+  walletAccounts         WalletAccount[]
+  sessions               AuthSession[]
+  sentInvites            OrganizationInvite[]    @relation("InviteSender")
+  invoices               Invoice[]               @relation("InvoiceCreator")
+  employees              EmployeeProfile[]
+  policyDefinitions      PolicyDefinition[]      @relation("PolicyCreator")
+  policyDecisions        PolicyDecision[]        @relation("PolicyDecisionActor")
+  financialProposals     FinancialProposal[]     @relation("ProposalCreator")
+  proposalApprovals      ProposalApproval[]      @relation("ProposalApprover")
+  cfoInferenceRuns       CfoInferenceRun[]       @relation("CfoInferenceActor")
+  cfoProposals           CfoAllocationProposal[] @relation("CfoProposalCreator")
+  cfoDecisions           CfoAllocationProposal[] @relation("CfoProposalDecider")
+  ownedAgents            AgentIdentity[]         @relation("AgentOwner")
+  approvedPayrollBatches PayrollBatch[]          @relation("PayrollBatchApprover")
+  payrollAnalysisRuns    PayrollAnalysisRun[]    @relation("PayrollAnalysisActor")
+}
+
+model Organization {
+  id                       String                     @id @default(uuid()) @db.Uuid
+  slug                     String                     @unique
+  name                     String
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  memberships              Membership[]
+  invites                  OrganizationInvite[]
+  invoices                 Invoice[]
+  quotes                   QuoteSnapshot[]
+  paymentAttempts          PaymentAttempt[]
+  idempotencyRecords       IdempotencyRecord[]
+  employees                EmployeeProfile[]
+  payrollBatches           PayrollBatch[]
+  auditEvents              AuditEvent[]
+  outboxEvents             OutboxEvent[]
+  inboxEvents              InboxEvent[]
+  settlementPostings       SettlementPosting[]
+  reconciliationCases      ReconciliationCase[]
+  externalTransferEvidence ExternalTransferEvidence[]
+  ledgerAccounts           LedgerAccount[]
+  journalTransactions      JournalTransaction[]
+  journalLines             JournalLine[]
+  balanceReservations      BalanceReservation[]
+  policyDefinitions        PolicyDefinition[]
+  policyDecisions          PolicyDecision[]
+  financialProposals       FinancialProposal[]
+  proposalApprovals        ProposalApproval[]
+  policyContractBinding    PolicyContractBinding?
+  cfoInferenceRuns         CfoInferenceRun[]
+  cfoAllocationProposals   CfoAllocationProposal[]
+  agents                   AgentIdentity[]
+  serviceOffers            ServiceOffer[]
+  agentPurchases           AgentPurchase[]
+  payrollAnalysisRuns      PayrollAnalysisRun[]
+}
+
+model Membership {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  userId         String         @db.Uuid
+  role           MembershipRole
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model WalletAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  network       String
+  accountId     String
+  lastPublicKey String
+  verifiedAt    DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([network, accountId])
+  @@index([userId])
+}
+
+model AuthChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  network    String
+  recipient  String
+  message    String
+  nonceHash  String    @unique
+  stateHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([expiresAt, consumedAt])
+}
+
+model AuthSession {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  tokenHash     String    @unique
+  csrfTokenHash String
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt, revokedAt])
+}
+
+model OrganizationInvite {
+  id                  String         @id @default(uuid()) @db.Uuid
+  organizationId      String         @db.Uuid
+  invitedByUserId     String         @db.Uuid
+  targetNearAccountId String
+  network             String
+  role                MembershipRole
+  tokenHash           String         @unique
+  expiresAt           DateTime
+  acceptedAt          DateTime?
+  revokedAt           DateTime?
+  createdAt           DateTime       @default(now())
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy           User           @relation("InviteSender", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, expiresAt])
+  @@index([targetNearAccountId, expiresAt])
+}
+
+model Invoice {
+  id                     String           @id @default(uuid()) @db.Uuid
+  organizationId         String           @db.Uuid
+  invoiceNumber          String
+  status                 InvoiceStatus    @default(DRAFT)
+  currency               String
+  totalAmountAtomic      Decimal          @db.Decimal(78, 0)
+  publicTokenHash        String           @unique
+  payeeDestination       String
+  customer               Json
+  lineItems              Json
+  metadata               Json
+  dueDate                DateTime
+  verifiedReceivedAtomic Decimal          @default(0) @db.Decimal(78, 0)
+  revision               Int              @default(1)
+  version                Int              @default(1)
+  issuedAt               DateTime?
+  expiredAt              DateTime?
+  voidedAt               DateTime?
+  paidAt                 DateTime?
+  createdByUserId        String           @db.Uuid
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  organization           Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy              User             @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  paymentAttempts        PaymentAttempt[]
+  quotes                 QuoteSnapshot[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId, status])
+}
+
+model QuoteSnapshot {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @db.Uuid
+  invoiceId            String?         @db.Uuid
+  provider             String
+  sourceAssetId        String
+  destinationAssetId   String
+  amountAtomic         Decimal         @db.Decimal(78, 0)
+  expectedAmountAtomic Decimal         @db.Decimal(78, 0)
+  recipient            String
+  refundTo             String
+  slippageBps          Int
+  confidentiality      String
+  scenario             String?
+  requestDigest        String
+  expiresAt            DateTime
+  createdAt            DateTime        @default(now())
+  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoice              Invoice?        @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  paymentAttempt       PaymentAttempt?
+
+  @@index([organizationId, expiresAt])
+  @@index([organizationId, invoiceId])
+}
+
+model PaymentAttempt {
+  id                     String                  @id @default(uuid()) @db.Uuid
+  organizationId         String                  @db.Uuid
+  invoiceId              String?                 @db.Uuid
+  quoteId                String                  @unique @db.Uuid
+  operation              String                  @default("SETTLEMENT_INITIATE")
+  idempotencyKey         String
+  requestDigest          String
+  provider               String
+  providerTransferId     String?
+  status                 PaymentStatus           @default(AWAITING_DEPOSIT)
+  version                Int                     @default(1)
+  pollCount              Int                     @default(0)
+  settledAt              DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoice                Invoice?                @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  quote                  QuoteSnapshot           @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  settlementObservations SettlementObservation[]
+  refunds                Refund[]
+  statusHistory          PaymentStatusHistory[]
+  postings               SettlementPosting[]
+  reconciliationCase     ReconciliationCase?
+
+  @@unique([organizationId, operation, idempotencyKey])
+  @@unique([provider, providerTransferId])
+  @@index([organizationId, status])
+}
+
+model PaymentStatusHistory {
+  id               String         @id @default(uuid()) @db.Uuid
+  paymentAttemptId String         @db.Uuid
+  status           PaymentStatus
+  providerEventId  String
+  observedAt       DateTime       @default(now())
+  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentAttemptId, providerEventId, status])
+  @@index([paymentAttemptId, observedAt])
+}
+
+model SettlementObservation {
+  id                String         @id @default(uuid()) @db.Uuid
+  paymentAttemptId  String         @db.Uuid
+  providerEventId   String
+  providerStatus    String
+  verified          Boolean
+  controlledPayload Json?
+  observedAt        DateTime       @default(now())
+  paymentAttempt    PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentAttemptId, providerEventId])
+}
+
+model ExternalTransferEvidence {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  referenceId       String
+  provider          String
+  network           String
+  transactionHash   String
+  signerAccountId   String
+  receiverAccountId String
+  assetId           String
+  amountAtomic      Decimal      @db.Decimal(78, 0)
+  evidenceDigest    String
+  verifiedAt        DateTime
+  createdAt         DateTime     @default(now())
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, network, transactionHash])
+  @@unique([organizationId, referenceId])
+  @@index([organizationId, verifiedAt])
+}
+
+model Refund {
+  id               String         @id @default(uuid()) @db.Uuid
+  paymentAttemptId String         @db.Uuid
+  providerRefundId String
+  amountAtomic     Decimal        @db.Decimal(78, 0)
+  assetId          String
+  observedAt       DateTime       @default(now())
+  paymentAttempt   PaymentAttempt @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentAttemptId, providerRefundId])
+}
+
+model IdempotencyRecord {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  operation      String
+  key            String
+  requestDigest  String
+  responseCode   Int?
+  responseBody   Json?
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, operation, key])
+}
+
+model EmployeeProfile {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @db.Uuid
+  userId         String?       @db.Uuid
+  employeeCode   String
+  displayName    String
+  isSynthetic    Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  payrollLines   PayrollLine[]
+
+  @@unique([organizationId, employeeCode])
+  @@unique([id, organizationId])
+  @@index([organizationId])
+}
+
+model PayrollBatch {
+  id                     String               @id @default(uuid()) @db.Uuid
+  organizationId         String               @db.Uuid
+  reference              String
+  status                 PayrollBatchStatus   @default(DRAFT)
+  currency               String
+  isSynthetic            Boolean              @default(false)
+  schemaVersion          Int                  @default(1)
+  manifestDigest         String
+  totalGrossAtomic       Decimal              @db.Decimal(78, 0)
+  totalNetAtomic         Decimal              @db.Decimal(78, 0)
+  lineCount              Int
+  perEmployeeCapAtomic   Decimal              @db.Decimal(78, 0)
+  batchCapAtomic         Decimal              @db.Decimal(78, 0)
+  wrappedDataKey         Bytes
+  dataKeyNonce           Bytes
+  encryptionKeyVersion   String
+  calculationAssumption  String               @default("SYNTHETIC_NO_TAX")
+  approvedManifestDigest String?
+  approvedByUserId       String?              @db.Uuid
+  approvedAt             DateTime?
+  version                Int                  @default(1)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  approvedBy             User?                @relation("PayrollBatchApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  lines                  PayrollLine[]
+  analysisRuns           PayrollAnalysisRun[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, reference])
+  @@index([organizationId, status, createdAt])
+}
+
+model PayrollLine {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @db.Uuid
+  batchId              String          @db.Uuid
+  employeeId           String          @db.Uuid
+  salaryCiphertext     Bytes
+  salaryNonce          Bytes
+  netCiphertext        Bytes
+  netNonce             Bytes
+  profileCiphertext    Bytes
+  profileNonce         Bytes
+  amountCommitment     String
+  lineDigest           String
+  encryptionKeyVersion String
+  createdAt            DateTime        @default(now())
+  batch                PayrollBatch    @relation(fields: [batchId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employee             EmployeeProfile @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([batchId, employeeId])
+  @@index([organizationId, employeeId, createdAt])
+}
+
+model PayrollAnalysisRun {
+  id                    String       @id @default(uuid()) @db.Uuid
+  organizationId        String       @db.Uuid
+  batchId               String       @db.Uuid
+  actorUserId           String       @db.Uuid
+  mode                  String
+  provider              String
+  model                 String
+  inputDigest           String
+  responseDigest        String?
+  attestationStatus     String
+  status                String
+  findings              Json?
+  errorCode             String?
+  providerRequestId     String?
+  promptTemplateVersion String
+  inputClassification   String
+  createdAt             DateTime     @default(now())
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  batch                 PayrollBatch @relation(fields: [batchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  actor                 User         @relation("PayrollAnalysisActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, batchId, createdAt])
+}
+
+model AuditEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  actorId        String?
+  eventType      String
+  entityType     String
+  entityId       String
+  correlationId  String
+  traceId        String?
+  sequence       Int          @default(0)
+  previousHash   String?
+  eventHash      String       @default("")
+  metadata       Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, sequence])
+  @@index([organizationId, createdAt])
+}
+
+model OutboxEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  topic          String
+  aggregateId    String
+  payload        Json
+  createdAt      DateTime     @default(now())
+  publishedAt    DateTime?
+  attempts       Int          @default(0)
+  availableAt    DateTime     @default(now())
+  claimedAt      DateTime?
+  claimToken     String?
+  lastErrorCode  String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([topic, aggregateId])
+  @@index([publishedAt, availableAt, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model InboxEvent {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  source          String
+  externalEventId String
+  payload         Json
+  receivedAt      DateTime     @default(now())
+  processedAt     DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([source, externalEventId])
+  @@index([organizationId, receivedAt])
+}
+
+model SettlementPosting {
+  id               String                @id @default(uuid()) @db.Uuid
+  organizationId   String                @db.Uuid
+  paymentAttemptId String                @db.Uuid
+  kind             SettlementPostingKind
+  assetId          String
+  amountAtomic     Decimal               @db.Decimal(78, 0)
+  journalId        String?               @db.Uuid
+  createdAt        DateTime              @default(now())
+  completedAt      DateTime?
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  paymentAttempt   PaymentAttempt        @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentAttemptId, kind])
+  @@index([organizationId, createdAt])
+}
+
+model ReconciliationCase {
+  id               String               @id @default(uuid()) @db.Uuid
+  organizationId   String               @db.Uuid
+  paymentAttemptId String               @unique @db.Uuid
+  reasonCode       String
+  status           ReconciliationStatus @default(OPEN)
+  createdAt        DateTime             @default(now())
+  resolvedAt       DateTime?
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  paymentAttempt   PaymentAttempt       @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+}
+
+model LedgerAccount {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  organizationId        String                  @db.Uuid
+  assetId               String
+  code                  String
+  name                  String
+  accountType           LedgerAccountType
+  normalSide            LedgerNormalSide
+  postedBalanceAtomic   Decimal                 @default(0) @db.Decimal(78, 0)
+  reservedBalanceAtomic Decimal                 @default(0) @db.Decimal(78, 0)
+  version               Int                     @default(1)
+  archivedAt            DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  journalLines          JournalLine[]
+  reservations          BalanceReservation[]
+  cfoProposals          CfoAllocationProposal[] @relation("CfoSourceAccount")
+
+  @@unique([organizationId, assetId, code])
+  @@unique([id, organizationId, assetId])
+  @@index([organizationId, assetId])
+}
+
+model JournalTransaction {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  assetId        String
+  reference      String
+  requestDigest  String
+  description    String
+  reversalOfId   String?             @unique @db.Uuid
+  version        Int                 @default(1)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  lines          JournalLine[]
+  reversalOf     JournalTransaction? @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy     JournalTransaction? @relation("JournalReversal")
+
+  @@unique([organizationId, reference])
+  @@unique([id, organizationId, assetId])
+  @@index([organizationId, assetId, createdAt])
+}
+
+model JournalLine {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  assetId        String
+  transactionId  String             @db.Uuid
+  accountId      String             @db.Uuid
+  side           JournalSide
+  amountAtomic   Decimal            @db.Decimal(78, 0)
+  version        Int                @default(1)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  transaction    JournalTransaction @relation(fields: [transactionId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
+  account        LedgerAccount      @relation(fields: [accountId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
+
+  @@index([organizationId, assetId, transactionId])
+  @@index([organizationId, assetId, accountId, createdAt])
+}
+
+model BalanceReservation {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @db.Uuid
+  assetId        String
+  accountId      String                 @db.Uuid
+  reference      String
+  requestDigest  String
+  amountAtomic   Decimal                @db.Decimal(78, 0)
+  status         ReservationStatus      @default(ACTIVE)
+  expiresAt      DateTime?
+  releasedAt     DateTime?
+  consumedAt     DateTime?
+  version        Int                    @default(1)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account        LedgerAccount          @relation(fields: [accountId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
+  cfoProposal    CfoAllocationProposal? @relation("CfoReservation")
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, assetId, accountId, status])
+  @@index([status, expiresAt])
+}
+
+model PolicyDefinition {
+  id              String              @id @default(uuid()) @db.Uuid
+  organizationId  String              @db.Uuid
+  version         Int
+  digest          String
+  rules           Json
+  createdByUserId String              @db.Uuid
+  supersededAt    DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy       User                @relation("PolicyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  decisions       PolicyDecision[]
+  proposals       FinancialProposal[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, version])
+  @@index([organizationId, supersededAt])
+}
+
+model PolicyDecision {
+  id                 String                @id @default(uuid()) @db.Uuid
+  organizationId     String                @db.Uuid
+  policyDefinitionId String?               @db.Uuid
+  proposalId         String?               @db.Uuid
+  actorUserId        String                @db.Uuid
+  outcome            PolicyDecisionOutcome
+  reasonCodes        Json
+  inputsDigest       String
+  inputSummary       Json
+  version            Int                   @default(1)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  policyDefinition   PolicyDefinition?     @relation(fields: [policyDefinitionId], references: [id], onDelete: Restrict)
+  proposal           FinancialProposal?    @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  actor              User                  @relation("PolicyDecisionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, inputsDigest])
+}
+
+model FinancialProposal {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  organizationId           String                  @db.Uuid
+  proposalKey              String                  @db.Uuid
+  revision                 Int
+  proposalType             String
+  status                   FinancialProposalStatus @default(PENDING)
+  policyDefinitionId       String                  @db.Uuid
+  policyVersion            Int
+  policyDigest             String
+  organizationCommitment   String
+  proposalIdCommitment     String
+  instructionDigest        String                  @unique
+  chainId                  String
+  assetId                  String
+  amountAtomic             Decimal                 @db.Decimal(78, 0)
+  authorizedMaxAtomic      Decimal                 @db.Decimal(78, 0)
+  recipientCommitment      String
+  expiresAt                DateTime
+  nonceCommitment          String
+  idempotencyKeyCommitment String
+  operation                String
+  environment              String
+  agentId                  String?
+  vendorId                 String?
+  approvalThreshold        Int
+  createdByUserId          String                  @db.Uuid
+  supersedesId             String?                 @unique @db.Uuid
+  version                  Int                     @default(1)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  organization             Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  policyDefinition         PolicyDefinition        @relation(fields: [policyDefinitionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy                User                    @relation("ProposalCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  supersedes               FinancialProposal?      @relation("ProposalRevision", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy             FinancialProposal?      @relation("ProposalRevision")
+  approvals                ProposalApproval[]
+  decisions                PolicyDecision[]
+  agentPurchase            AgentPurchase?
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, proposalKey, revision])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, assetId, createdAt])
+}
+
+model CfoInferenceRun {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  organizationId        String                 @db.Uuid
+  actorUserId           String                 @db.Uuid
+  provider              String
+  model                 String
+  inputClassification   String
+  promptTemplateVersion String
+  inputDigest           String
+  responseDigest        String?
+  providerRequestId     String?
+  attestationStatus     String
+  status                CfoInferenceStatus
+  errorCode             String?
+  createdAt             DateTime               @default(now())
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor                 User                   @relation("CfoInferenceActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  proposal              CfoAllocationProposal?
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model CfoAllocationProposal {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @db.Uuid
+  inferenceRunId      String              @unique @db.Uuid
+  createdByUserId     String              @db.Uuid
+  decidedByUserId     String?             @db.Uuid
+  sourceAccountId     String              @db.Uuid
+  reservationId       String?             @unique @db.Uuid
+  assetId             String
+  maximumAmountAtomic Decimal             @db.Decimal(78, 0)
+  allocations         Json
+  supportingRecordIds Json
+  status              CfoProposalStatus   @default(PENDING)
+  decisionNote        String?
+  decidedAt           DateTime?
+  version             Int                 @default(1)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  inferenceRun        CfoInferenceRun     @relation(fields: [inferenceRunId], references: [id], onDelete: Restrict)
+  createdBy           User                @relation("CfoProposalCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  decidedBy           User?               @relation("CfoProposalDecider", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  sourceAccount       LedgerAccount       @relation("CfoSourceAccount", fields: [sourceAccountId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
+  reservation         BalanceReservation? @relation("CfoReservation", fields: [reservationId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId, status, createdAt])
+}
+
+model AgentIdentity {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @db.Uuid
+  ownerUserId          String          @db.Uuid
+  purpose              String
+  provider             String
+  status               AgentStatus     @default(ACTIVE)
+  allowedActions       Json
+  assetId              String
+  chainId              String
+  maxAmountAtomic      Decimal         @db.Decimal(78, 0)
+  rollingBudgetAtomic  Decimal         @db.Decimal(78, 0)
+  rollingWindowSeconds Int             @default(86400)
+  vendorAllowlist      Json
+  expiresAt            DateTime
+  revokedAt            DateTime?
+  version              Int             @default(1)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  owner                User            @relation("AgentOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  offers               ServiceOffer[]
+  purchases            AgentPurchase[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId, status, expiresAt])
+}
+
+model ServiceOffer {
+  id                  String         @id @default(uuid()) @db.Uuid
+  organizationId      String         @db.Uuid
+  agentId             String         @db.Uuid
+  vendorId            String
+  externalOfferId     String
+  serviceCode         String
+  requestDigest       String
+  offerDigest         String         @unique
+  assetId             String
+  chainId             String
+  priceAtomic         Decimal        @db.Decimal(78, 0)
+  recipientCommitment String
+  controlledTerms     Json
+  expiresAt           DateTime
+  createdAt           DateTime       @default(now())
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  agent               AgentIdentity  @relation(fields: [agentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  purchase            AgentPurchase?
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, vendorId, externalOfferId])
+  @@index([organizationId, agentId, expiresAt])
+}
+
+model AgentPurchase {
+  id                   String              @id @default(uuid()) @db.Uuid
+  organizationId       String              @db.Uuid
+  agentId              String              @db.Uuid
+  offerId              String              @unique @db.Uuid
+  financialProposalId  String?             @unique @db.Uuid
+  status               AgentPurchaseStatus @default(CLAIMED)
+  requestDigest        String
+  failureCode          String?
+  mockPaymentReference String?
+  deliverable          Json?
+  completedAt          DateTime?
+  version              Int                 @default(1)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  organization         Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  agent                AgentIdentity       @relation(fields: [agentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  offer                ServiceOffer        @relation(fields: [offerId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  financialProposal    FinancialProposal?  @relation(fields: [financialProposalId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([offerId, organizationId])
+  @@index([organizationId, status, createdAt])
+}
+
+model ProposalApproval {
+  id                        String            @id @default(uuid()) @db.Uuid
+  organizationId            String            @db.Uuid
+  proposalId                String            @db.Uuid
+  approverUserId            String            @db.Uuid
+  approverNearAccountId     String
+  approvedInstructionDigest String
+  version                   Int               @default(1)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  organization              Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  proposal                  FinancialProposal @relation(fields: [proposalId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  approver                  User              @relation("ProposalApprover", fields: [approverUserId], references: [id], onDelete: Restrict)
+
+  @@unique([proposalId, approverUserId])
+  @@index([organizationId, proposalId])
+}
+
+model PolicyContractBinding {
+  id                     String       @id @default(uuid()) @db.Uuid
+  organizationId         String       @unique @db.Uuid
+  network                String
+  contractAccountId      String
+  expectedCodeHash       String
+  organizationCommitment String
+  required               Boolean      @default(false)
+  verifiedAt             DateTime?
+  version                Int          @default(1)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([network, contractAccountId])
+}
