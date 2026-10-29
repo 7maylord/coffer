@@ -1,0 +1,58 @@
+import { Module } from '@nestjs/common';
+import { MockSettlementAdapter } from './mock-settlement.adapter.js';
+import { SettlementController } from './settlement.controller.js';
+import { AuthModule } from '../auth/auth.module.js';
+import { TreasuryModule } from '../treasury/treasury.module.js';
+import { PrismaSettlementStore } from './prisma-settlement.store.js';
+import { SettlementService } from './settlement.service.js';
+import {
+  SETTLEMENT_OPERATIONS,
+  type SettlementOperations,
+} from './settlement.store.js';
+import {
+  RedisSettlementQueue,
+  SettlementOutboxWorker,
+} from './settlement-outbox.worker.js';
+import { NearIntents1ClickAdapter } from './near-intents-1click.adapter.js';
+import {
+  NEAR_TRANSFER_EVIDENCE_STORE,
+  NearTestnetTransferAdapter,
+} from './near-testnet-transfer.adapter.js';
+import { PrismaNearTransferEvidenceStore } from './prisma-near-transfer-evidence.store.js';
+
+@Module({
+  imports: [AuthModule, TreasuryModule],
+  controllers: [SettlementController],
+  providers: [
+    MockSettlementAdapter,
+    NearIntents1ClickAdapter,
+    NearTestnetTransferAdapter,
+    PrismaNearTransferEvidenceStore,
+    {
+      provide: NEAR_TRANSFER_EVIDENCE_STORE,
+      useExisting: PrismaNearTransferEvidenceStore,
+    },
+    PrismaSettlementStore,
+    {
+      provide: SettlementService,
+      inject: [PrismaSettlementStore, MockSettlementAdapter],
+      useFactory: (
+        store: PrismaSettlementStore,
+        mock: MockSettlementAdapter,
+      ): SettlementOperations => new SettlementService(store, mock),
+    },
+    {
+      provide: SETTLEMENT_OPERATIONS,
+      useExisting: SettlementService,
+    },
+    RedisSettlementQueue,
+    SettlementOutboxWorker,
+  ],
+  exports: [
+    SETTLEMENT_OPERATIONS,
+    SettlementOutboxWorker,
+    NearIntents1ClickAdapter,
+    NearTestnetTransferAdapter,
+  ],
+})
+export class SettlementModule {}
