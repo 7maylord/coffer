@@ -1,0 +1,335 @@
+import type { SchemaObject } from '@nestjs/swagger';
+
+const approvalSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'approverUserId',
+    'approverNearAccountId',
+    'approvedInstructionDigest',
+    'createdAt',
+  ],
+  properties: {
+    approverUserId: { type: 'string', format: 'uuid' },
+    approverNearAccountId: { type: 'string' },
+    approvedInstructionDigest: { type: 'string' },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+export const financialProposalSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: true,
+  required: [
+    'id',
+    'status',
+    'policyVersion',
+    'policyDigest',
+    'instructionDigest',
+    'expiresAt',
+    'approvalThreshold',
+    'approvals',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    status: {
+      type: 'string',
+      enum: [
+        'PENDING',
+        'APPROVED',
+        'CANCELLED',
+        'EXPIRED',
+        'SUPERSEDED',
+        'STALE_POLICY',
+      ],
+    },
+    policyVersion: { type: 'integer' },
+    policyDigest: { type: 'string' },
+    instructionDigest: { type: 'string' },
+    expiresAt: { type: 'string', format: 'date-time' },
+    approvalThreshold: { type: 'integer' },
+    approvals: { type: 'array', items: approvalSchema },
+  },
+};
+
+const allocationSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'category',
+    'amountAtomic',
+    'reason',
+    'supportingRecordIds',
+    'confidenceBps',
+    'uncertainty',
+  ],
+  properties: {
+    category: { type: 'string' },
+    amountAtomic: { type: 'string' },
+    reason: { type: 'string' },
+    supportingRecordIds: {
+      type: 'array',
+      items: { type: 'string', format: 'uuid' },
+    },
+    confidenceBps: { type: 'integer' },
+    uncertainty: { type: 'string' },
+  },
+};
+
+export const cfoProposalSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'organizationId',
+    'inferenceRunId',
+    'sourceAccountId',
+    'reservationId',
+    'assetId',
+    'maximumAmountAtomic',
+    'allocations',
+    'supportingRecordIds',
+    'status',
+    'provider',
+    'model',
+    'attestationStatus',
+    'inputClassification',
+    'promptTemplateVersion',
+    'responseValidationStatus',
+    'decisionNote',
+    'decidedAt',
+    'createdAt',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    organizationId: { type: 'string', format: 'uuid' },
+    inferenceRunId: { type: 'string', format: 'uuid' },
+    sourceAccountId: { type: 'string', format: 'uuid' },
+    reservationId: { type: 'string', format: 'uuid', nullable: true },
+    assetId: { type: 'string' },
+    maximumAmountAtomic: { type: 'string' },
+    allocations: { type: 'array', items: allocationSchema },
+    supportingRecordIds: {
+      type: 'array',
+      items: { type: 'string', format: 'uuid' },
+    },
+    status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'] },
+    provider: { type: 'string' },
+    model: { type: 'string' },
+    attestationStatus: { type: 'string' },
+    inputClassification: { type: 'string' },
+    promptTemplateVersion: { type: 'string' },
+    responseValidationStatus: { type: 'string', enum: ['VALIDATED'] },
+    decisionNote: { type: 'string', nullable: true },
+    decidedAt: { type: 'string', format: 'date-time', nullable: true },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+export const cfoWorkspaceSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'providerMode',
+    'nearAiEnabled',
+    'attestationVerification',
+    'proposals',
+  ],
+  properties: {
+    providerMode: { type: 'string', enum: ['mock', 'near-ai'] },
+    nearAiEnabled: { type: 'boolean' },
+    attestationVerification: {
+      type: 'string',
+      enum: ['not-implemented'],
+    },
+    proposals: { type: 'array', items: cfoProposalSchema },
+  },
+};
+
+export const agentSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'organizationId',
+    'ownerUserId',
+    'purpose',
+    'provider',
+    'status',
+    'allowedActions',
+    'assetId',
+    'chainId',
+    'maxAmountAtomic',
+    'rollingBudgetAtomic',
+    'rollingWindowSeconds',
+    'vendorAllowlist',
+    'expiresAt',
+    'revokedAt',
+    'version',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    organizationId: { type: 'string', format: 'uuid' },
+    ownerUserId: { type: 'string', format: 'uuid' },
+    purpose: { type: 'string' },
+    provider: { type: 'string' },
+    status: { type: 'string', enum: ['ACTIVE', 'REVOKED'] },
+    allowedActions: { type: 'array', items: { type: 'string' } },
+    assetId: { type: 'string' },
+    chainId: { type: 'string' },
+    maxAmountAtomic: { type: 'string' },
+    rollingBudgetAtomic: { type: 'string' },
+    rollingWindowSeconds: { type: 'integer' },
+    vendorAllowlist: { type: 'array', items: { type: 'string' } },
+    expiresAt: { type: 'string', format: 'date-time' },
+    revokedAt: { type: 'string', format: 'date-time', nullable: true },
+    version: { type: 'integer' },
+  },
+};
+
+export const offerSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'organizationId',
+    'agentId',
+    'vendorId',
+    'externalOfferId',
+    'serviceCode',
+    'requestDigest',
+    'offerDigest',
+    'assetId',
+    'chainId',
+    'priceAtomic',
+    'recipientCommitment',
+    'controlledTerms',
+    'expiresAt',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    organizationId: { type: 'string', format: 'uuid' },
+    agentId: { type: 'string', format: 'uuid' },
+    vendorId: { type: 'string' },
+    externalOfferId: { type: 'string', format: 'uuid' },
+    serviceCode: { type: 'string' },
+    requestDigest: { type: 'string' },
+    offerDigest: { type: 'string' },
+    assetId: { type: 'string' },
+    chainId: { type: 'string' },
+    priceAtomic: { type: 'string' },
+    recipientCommitment: { type: 'string' },
+    controlledTerms: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['documentCount', 'classificationProfile', 'deliverable'],
+      properties: {
+        documentCount: { type: 'integer' },
+        classificationProfile: {
+          type: 'string',
+          enum: ['standard', 'financial'],
+        },
+        deliverable: {
+          type: 'string',
+          enum: ['classification-labels'],
+        },
+      },
+    },
+    expiresAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+export const purchaseSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'organizationId',
+    'agentId',
+    'offerId',
+    'financialProposalId',
+    'status',
+    'requestDigest',
+    'failureCode',
+    'mockPaymentReference',
+    'deliverable',
+    'completedAt',
+    'version',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    organizationId: { type: 'string', format: 'uuid' },
+    agentId: { type: 'string', format: 'uuid' },
+    offerId: { type: 'string', format: 'uuid' },
+    financialProposalId: { type: 'string', format: 'uuid', nullable: true },
+    status: {
+      type: 'string',
+      enum: ['CLAIMED', 'AWAITING_APPROVAL', 'COMPLETED', 'DENIED', 'FAILED'],
+    },
+    requestDigest: { type: 'string' },
+    failureCode: { type: 'string', nullable: true },
+    mockPaymentReference: { type: 'string', nullable: true },
+    deliverable: { type: 'object', additionalProperties: true, nullable: true },
+    completedAt: { type: 'string', format: 'date-time', nullable: true },
+    version: { type: 'integer' },
+  },
+};
+
+export const agentWorkspaceSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'executionEnabled',
+    'settlementMode',
+    'vendor',
+    'agents',
+    'offers',
+    'purchases',
+  ],
+  properties: {
+    executionEnabled: { type: 'boolean' },
+    settlementMode: { type: 'string', enum: ['mock'] },
+    vendor: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'id',
+        'serviceCode',
+        'recipientCommitment',
+        'untrustedTextUsedForAuthorization',
+      ],
+      properties: {
+        id: { type: 'string' },
+        serviceCode: { type: 'string' },
+        recipientCommitment: { type: 'string' },
+        untrustedTextUsedForAuthorization: { type: 'boolean' },
+      },
+    },
+    agents: { type: 'array', items: agentSchema },
+    offers: { type: 'array', items: offerSchema },
+    purchases: {
+      type: 'array',
+      items: {
+        ...purchaseSchema,
+        properties: {
+          ...purchaseSchema.properties,
+          financialProposal: { ...financialProposalSchema, nullable: true },
+        },
+        required: [...(purchaseSchema.required ?? []), 'financialProposal'],
+      },
+    },
+  },
+};
+
+export const policySchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'organizationId', 'version', 'digest', 'rules'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    organizationId: { type: 'string', format: 'uuid' },
+    version: { type: 'integer' },
+    digest: { type: 'string' },
+    rules: { type: 'object', additionalProperties: true },
+  },
+};
