@@ -1,0 +1,31 @@
+{
+  "correlationId": "11111111-1111-4111-8111-111111111111",
+  "timestamp": "2026-10-30T12:00:00.000Z",
+  "signature": "sanitized-provider-signature",
+  "quoteRequest": {
+    "dry": true,
+    "swapType": "EXACT_INPUT",
+    "slippageTolerance": 50,
+    "originAsset": "nep141:wrap.near",
+    "depositType": "ORIGIN_CHAIN",
+    "destinationAsset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+    "amount": "100000000000000000000000",
+    "refundTo": "payer.near",
+    "refundType": "ORIGIN_CHAIN",
+    "recipient": "0x1111111111111111111111111111111111111111",
+    "recipientType": "DESTINATION_CHAIN",
+    "deadline": "__DEADLINE__",
+    "confidentiality": "public"
+  },
+  "quote": {
+    "amountIn": "100000000000000000000000",
+    "amountInFormatted": "0.1",
+    "amountInUsd": "0.27",
+    "minAmountIn": "100000000000000000000000",
+    "amountOut": "269000",
+    "amountOutFormatted": "0.269",
+    "amountOutUsd": "0.269",
+    "minAmountOut": "267655",
+    "timeEstimate": 120
+  }
+}
