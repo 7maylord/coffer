@@ -1,0 +1,23 @@
+{
+  "name": "near-testnet-native-invoice-v1",
+  "encoding": "See ../DIGEST_SPEC.md. All digest-like inputs below are 32 repeated bytes.",
+  "input": {
+    "organization_commitment_byte": 1,
+    "proposal_type": "invoice_payment",
+    "proposal_id_byte": 2,
+    "revision": "3",
+    "policy_version": "4",
+    "policy_digest_byte": 5,
+    "chain_id": "near:testnet",
+    "asset_id": "near:testnet:native",
+    "amount_atomic": "1250000000000000000000000",
+    "authorized_max_atomic": "1300000000000000000000000",
+    "recipient_commitment_byte": 6,
+    "expires_at_ns": "1800000000000000000",
+    "nonce_byte": 7,
+    "idempotency_key_commitment_byte": 8,
+    "operation": "transfer",
+    "environment": "testnet"
+  },
+  "expected_sha256_hex": "213071e61b34740afdb7301584228f08903f36d1e9f44b82aba5f5e7a58ef365"
+}
