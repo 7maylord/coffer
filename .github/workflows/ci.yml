@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan source for credential material
+        run: node scripts/security-scan.mjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend api:generate
+      - run: git diff --exit-code -- frontend/src/lib/api-schema.d.ts
+      - run: pnpm --dir frontend format:check
+      - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend typecheck
+      - run: pnpm --dir frontend test
+      - run: pnpm --dir frontend build
+      - run: pnpm --dir frontend exec playwright install --with-deps chromium
+      - run: pnpm --dir frontend test:e2e
+      - run: pnpm --dir frontend audit --audit-level high
+
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: coffer_test
+          POSTGRES_USER: coffer
+          POSTGRES_PASSWORD: coffer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coffer -d coffer_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://coffer:coffer_test@localhost:5432/coffer_test
+      REDIS_URL: redis://localhost:6379
+      SETTLEMENT_MODE: mock
+      LIVE_TRANSFERS_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: pnpm
+          cache-dependency-path: backend/pnpm-lock.yaml
+      - run: pnpm --dir backend install --frozen-lockfile
+      - run: pnpm --dir backend prisma:generate
+      - run: pnpm --dir backend prisma:migrate:deploy
+      - run: pnpm --dir backend prisma:seed
+      - run: pnpm --dir backend format:check
+      - run: pnpm --dir backend lint
+      - run: pnpm --dir backend typecheck
+      - run: pnpm --dir backend openapi:check
+      - run: pnpm --dir backend test:critical
+      - run: pnpm --dir backend test:security
+      - run: pnpm --dir backend test:cov
+      - run: pnpm --dir backend test:integration
+      - run: pnpm --dir backend test:e2e
+      - run: pnpm --dir backend build
+      - run: pnpm --dir backend test:performance
+      - run: pnpm --dir backend audit --audit-level high
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.1
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+      - run: cargo fmt --manifest-path contracts/near-policy/Cargo.toml --check
+      - run: cargo fmt --manifest-path contracts/test-token/Cargo.toml --check
+      - run: cargo clippy --manifest-path contracts/near-policy/Cargo.toml --all-targets --locked -- -D warnings
+      - run: cargo clippy --manifest-path contracts/test-token/Cargo.toml --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path contracts/near-policy/Cargo.toml --locked
+      - run: cargo check --manifest-path contracts/near-policy/Cargo.toml --target wasm32-unknown-unknown --locked
+      - run: cargo test --manifest-path contracts/test-token/Cargo.toml --locked
+      - run: cargo check --manifest-path contracts/test-token/Cargo.toml --target wasm32-unknown-unknown --locked
+      - run: node --test contracts/near-policy/ts/proposal-digest.test.ts
+      - run: cargo install cargo-near --version 0.22.0 --locked
+      - run: cargo near build non-reproducible-wasm --manifest-path contracts/near-policy/Cargo.toml --locked
+      - run: cargo near build non-reproducible-wasm --manifest-path contracts/test-token/Cargo.toml --locked
+      - run: node contracts/verify-artifacts.mjs --abi-only
