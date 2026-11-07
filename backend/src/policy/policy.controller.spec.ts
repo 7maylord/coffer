@@ -7,6 +7,7 @@ import {
 import type { SessionPrincipal } from '../auth/auth.types.js';
 import { PolicyController } from './policy.controller.js';
 import type { PolicyService } from './policy.service.js';
+import type { PolicyFactoryService } from './policy-factory.service.js';
 
 describe('PolicyController', () => {
   const service = {
@@ -18,7 +19,12 @@ describe('PolicyController', () => {
     approve: vi.fn(),
     verifyForExecution: vi.fn(),
   } as unknown as PolicyService;
-  const controller = new PolicyController(service);
+  const factory = {
+    prepare: vi.fn(),
+    previewSponsoredCall: vi.fn(),
+    bind: vi.fn(),
+  } as unknown as PolicyFactoryService;
+  const controller = new PolicyController(service, factory);
   const principal: SessionPrincipal = {
     sessionId: 'session-id',
     userId: 'user-id',
@@ -119,6 +125,25 @@ describe('PolicyController', () => {
     expect(() =>
       controller.approve(request, 'org-id', 'proposal-id', {
         nearAccountId: '../attacker',
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('validates the sponsor preview and passes the authenticated owner', async () => {
+    const selection = {
+      controller: 'user.testnet',
+      approvers: ['user.testnet', 'other.testnet'],
+    };
+    await controller.deploymentPreview(request, 'org-id', selection);
+    expect(factory.previewSponsoredCall).toHaveBeenCalledWith(
+      principal,
+      'org-id',
+      selection,
+    );
+    expect(() =>
+      controller.deploymentPreview(request, 'org-id', {
+        ...selection,
+        approvers: ['../bad'],
       }),
     ).toThrow(BadRequestException);
   });

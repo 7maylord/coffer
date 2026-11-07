@@ -12,6 +12,7 @@ import { PolicyService } from './policy.service.js';
 import { POLICY_STORE } from './policy.types.js';
 import { PrismaPolicyStore } from './prisma-policy.store.js';
 import { AssetRegistry } from '../treasury/asset-registry.js';
+import { PolicyFactoryService } from './policy-factory.service.js';
 
 @Module({
   imports: [AuthModule, TreasuryModule],
@@ -35,6 +36,7 @@ import { AssetRegistry } from '../treasury/asset-registry.js';
         new DeterministicPolicyEngine(assets),
     },
     PolicyService,
+    PolicyFactoryService,
   ],
   exports: [PolicyService, DeterministicPolicyEngine],
 })

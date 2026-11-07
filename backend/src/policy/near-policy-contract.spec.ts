@@ -60,6 +60,7 @@ const binding: ContractBindingRecord = {
 function client(overrides: Record<string, unknown> = {}): NearFinalViewClient {
   return {
     codeHash: vi.fn().mockResolvedValue('expected-code-hash'),
+    accessKeys: vi.fn().mockResolvedValue(0),
     view: vi.fn().mockImplementation((_account, method, _args, blockHash) => {
       if (method === 'get_configuration') {
         return Promise.resolve({
@@ -141,6 +142,7 @@ describe('NearPolicyContractVerifier', () => {
 
   it('fails closed when final-state RPC is unavailable', async () => {
     const unavailable: NearFinalViewClient = {
+      accessKeys: vi.fn().mockRejectedValue(new Error('not configured')),
       view: vi.fn().mockRejectedValue(new Error('RPC timeout')),
       codeHash: vi.fn(),
     };

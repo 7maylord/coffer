@@ -11,9 +11,10 @@
 - Events contain account IDs, caller IDs, status and code hash only. No PII, raw financial instruction, amount, recipient, payroll data, key or provider credential is accepted.
 - The factory exposes no payment, token, approval, signing, deletion or self-upgrade method. It never receives tenant treasury assets by design.
 
-Open release blockers: independent NEAR contract audit, reproducible artifact
-review, approved global-code publisher/factory accounts, reviewed deposits, and
-an explicitly authorized testnet deployment. A callback that permanently runs
+The reproducible artifact, approved immutable global publication, factory
+account, deposit, deployment and final byte/configuration checks are recorded in
+`ARTIFACTS.md`. Open production blockers are an independent NEAR contract audit
+and production key/governance design. A callback that permanently runs
 out of gas can leave a record pending; no permissionless recovery method is
 included until its account-existence proof and refund semantics are designed
 and audited.

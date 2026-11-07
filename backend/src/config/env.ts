@@ -84,6 +84,10 @@ const envSchema = z
     NEAR_INTENTS_JWT: optionalSecret,
     NEAR_TEST_TOKEN_CONTRACT_ID: optionalNearAccount,
     NEAR_TEST_TOKEN_CODE_HASH: optionalNearHash,
+    NEAR_POLICY_FACTORY_ACCOUNT_ID: optionalNearAccount,
+    NEAR_POLICY_FACTORY_CODE_HASH: optionalNearHash,
+    NEAR_POLICY_PROVISIONER_ACCOUNT_ID: optionalNearAccount,
+    NEAR_POLICY_CODE_HASH: optionalNearHash,
     NEAR_AI_BASE_URL: serviceUrl(['https:']).default(
       'https://cloud-api.near.ai/v1',
     ),
@@ -182,6 +186,32 @@ const envSchema = z
         path: ['NEAR_TEST_TOKEN_CODE_HASH'],
         message:
           'Test token contract and code hash must be configured together',
+      });
+    }
+    const factorySettings = [
+      value.NEAR_POLICY_FACTORY_ACCOUNT_ID,
+      value.NEAR_POLICY_FACTORY_CODE_HASH,
+      value.NEAR_POLICY_PROVISIONER_ACCOUNT_ID,
+      value.NEAR_POLICY_CODE_HASH,
+    ];
+    if (
+      factorySettings.some(Boolean) &&
+      factorySettings.some((setting) => !setting)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['NEAR_POLICY_FACTORY_ACCOUNT_ID'],
+        message: 'Policy factory settings must be configured together',
+      });
+    }
+    if (
+      value.NEAR_POLICY_FACTORY_ACCOUNT_ID &&
+      value.NEAR_POLICY_FACTORY_ACCOUNT_ID.length > 31
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['NEAR_POLICY_FACTORY_ACCOUNT_ID'],
+        message: 'Policy factory account ID exceeds the contract limit',
       });
     }
     if (value.NODE_ENV === 'production') {

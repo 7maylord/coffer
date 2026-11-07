@@ -660,6 +660,136 @@
         ]
       }
     },
+    "/v1/orgs/{orgId}/policy-contract/deployment": {
+      "get": {
+        "operationId": "Policy.deployment",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Prepare a provisioner-signed testnet policy instance call",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/policy-contract/deployment-preview": {
+      "post": {
+        "operationId": "Policy.deploymentPreview",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "controller",
+                  "approvers"
+                ],
+                "properties": {
+                  "controller": {
+                    "type": "string"
+                  },
+                  "approvers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 16
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Prepare an unsigned, sponsor-funded factory call",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/policy-contract/binding": {
+      "post": {
+        "operationId": "Policy.bindContract",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Bind an active, final and verified factory policy instance",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/orgs/{orgId}/policies": {
       "post": {
         "operationId": "Policy.activate",

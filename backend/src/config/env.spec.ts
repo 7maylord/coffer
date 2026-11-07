@@ -41,6 +41,25 @@ describe('environment safety', () => {
     expect(result.LIVE_TRANSFERS_ENABLED).toBe(false);
   });
 
+  it('requires the reviewed factory, provisioner and policy hashes together', () => {
+    expect(() =>
+      parseEnvironment({
+        NEAR_POLICY_FACTORY_ACCOUNT_ID: 'factory.olymight.testnet',
+      }),
+    ).toThrow('Invalid configuration: NEAR_POLICY_FACTORY_ACCOUNT_ID');
+    expect(
+      parseEnvironment({
+        NEAR_POLICY_FACTORY_ACCOUNT_ID: 'factory.olymight.testnet',
+        NEAR_POLICY_FACTORY_CODE_HASH:
+          'DpSNraj7RMxNiJiTY7zPA3NfoC9Qx3MWgiERgBG5gM5A',
+        NEAR_POLICY_PROVISIONER_ACCOUNT_ID: 'olymight.testnet',
+        NEAR_POLICY_CODE_HASH: 'EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj',
+      }),
+    ).toMatchObject({
+      NEAR_POLICY_FACTORY_ACCOUNT_ID: 'factory.olymight.testnet',
+    });
+  });
+
   it('fails closed when live transfers are enabled in mock mode', () => {
     expect(() =>
       parseEnvironment({

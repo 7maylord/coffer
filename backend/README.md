@@ -29,6 +29,74 @@ LIVE_TRANSFERS_ENABLED=false
 
 No backend route signs or sends a blockchain transaction.
 
+## Deployed testnet contracts and integration status
+
+The verified public testnet values are:
+
+```text
+NEAR_NETWORK=testnet
+NEAR_TEST_TOKEN_CONTRACT_ID=ctusd.olymight.testnet
+NEAR_TEST_TOKEN_CODE_HASH=9ErFRZL31aDUPy6nBfztaCySidVzZsZsoyqP5x9NoM12
+```
+
+The non-custodial policy contract is `policy.olymight.testnet`, with code hash
+`EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj`. Its current 2-of-2 approver
+accounts are test keys under one operator and must not be described as
+production segregation of duties.
+
+`NearPolicyContractVerifier` already pins configuration/proposal reads to one
+final block and verifies the expected code hash. `NearTestnetTransferAdapter`
+already constructs canonical native/ctUSD wallet actions and independently
+checks testnet finality, exact signer/receiver/amount, single action, successful
+receipts, ctUSD code and metadata, receiver registration, and the NEP-141 event.
+It claims a transaction hash durably so it cannot be reused.
+
+The owner-only `GET /v1/orgs/:orgId/policy-contract/deployment` endpoint checks
+the configured factory and returns the active policy commitment, authorized
+wallet candidates, quorum and minimum deployment deposit. The provisioner must
+sign `create_policy_instance` outside the API. After finality, owner-only
+`POST /v1/orgs/:orgId/policy-contract/binding` binds the instance only after
+checking the factory and instance code hashes, pinned code reference, active
+state, deterministic account, exact policy digest, eligible distinct approvers,
+and zero instance access keys. The binding is required for later proposal
+verification and is inserted once with an audit event. These endpoints need all
+four `NEAR_POLICY_*` environment values from the verified release; they are off
+while unset. See [factory deployment runbook](../contracts/policy-factory/DEPLOYMENT_RUNBOOK.md).
+Initial binding currently requires the organization's active policy to be
+version 1, matching the newly initialized contract configuration version.
+
+The verified testnet values are `factory.olymight.testnet`, factory hash
+`E39mq9jbJTMyqK82oxsGks78bw5n7JpmCxz1cC1RroLZ`, provisioner
+`olymight.testnet`, and policy hash
+`EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj`. They are populated in the
+root `.env.example`; no private key is loaded by the API.
+
+Policy instances are per **organization**, not per Coffer login. Creating a
+Coffer account does not deploy a contract. After the owner creates an
+organization, activates its first policy and verifies enough approver wallets,
+`POST /v1/orgs/:orgId/policy-contract/deployment-preview` accepts the owner
+controller and approver accounts and returns an exact unsigned factory call.
+When executed, the configured provisioner signs and pays the gas **and** attached instance
+deposit. This is the prepared sponsored route; the API does not hold the provisioner key
+or broadcast the transaction. The preview rejects a pending/active instance,
+unverified approvers, duplicate human owners of approver wallets, or an
+unverified owner controller. The operator must recheck final state before
+signing because a preview is not a reservation.
+
+`SettlementService` and `SettlementController` still expose only the mock
+lifecycle. Canonical wallet instruction and transaction-evidence endpoints,
+durable attempt transitions, and verified settlement posting remain open. The
+browser signs; the API never receives a wallet key or treats an unverified
+callback or submitted hash as success.
+
+Live flags stay off by default:
+
+```text
+LIVE_TRANSFERS_ENABLED=false
+NEAR_TESTNET_TRANSFERS_ENABLED=false
+FEATURE_NATIVE_POLICY_CONTRACT=false
+```
+
 B-08 exposes strict, tenant-scoped CFO suggestions and a bounded mock service
 purchase flow. AI and vendor output are untrusted: schema and amount checks run
 before persistence, a human decision is required before reservation, and agent

@@ -184,6 +184,23 @@ export interface PolicyStore {
   contractBinding(
     organizationId: string,
   ): Promise<ContractBindingRecord | null>;
+  eligibleContractApprovers(
+    organizationId: string,
+    network: string,
+  ): Promise<Array<{ userId: string; role: string; accountId: string }>>;
+  bindVerifiedContract(input: {
+    organizationId: string;
+    actorUserId: string;
+    network: string;
+    contractAccountId: string;
+    expectedCodeHash: string;
+    organizationCommitment: string;
+    policyDigest: string;
+    policyVersion: number;
+    approvalThreshold: number;
+    controller: string;
+    approvers: string[];
+  }): Promise<ContractBindingRecord>;
   validApprovalUserIds(input: {
     organizationId: string;
     network: string;

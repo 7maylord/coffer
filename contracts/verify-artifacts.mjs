@@ -31,6 +31,23 @@ const contracts = [
     ],
   },
   {
+    name: 'policy-factory',
+    wasm: 'contracts/policy-factory/target/near/policy_factory.wasm',
+    abi: 'contracts/policy-factory/target/near/policy_factory_abi.json',
+    record: 'contracts/policy-factory/ARTIFACTS.md',
+    functions: [
+      'contract_source_metadata',
+      'create_policy_instance',
+      'get_instance',
+      'get_policy_code_hash',
+      'get_provisioner',
+      'init',
+      'list_instances',
+      'minimum_deployment_deposit',
+      'on_create_policy_instance',
+    ],
+  },
+  {
     name: 'test-token',
     wasm: 'contracts/test-token/target/near/test_token.wasm',
     abi: 'contracts/test-token/target/near/test_token_abi.json',
@@ -94,6 +111,18 @@ for (const contract of contracts) {
         migration.modifiers?.includes('init'),
       'near-policy: migrate must remain private and init-only',
     );
+  } else if (contract.name === 'policy-factory') {
+    const callback = functions.find((entry) => entry.name === 'on_create_policy_instance');
+    assert(
+      callback.modifiers?.includes('private'),
+      'policy-factory: deployment callback must remain private',
+    );
+    for (const forbidden of ['ft_transfer', 'mint', 'swap', 'intent', 'payroll']) {
+      assert(
+        !abiText.toLowerCase().includes(forbidden),
+        `policy-factory: forbidden ABI term ${forbidden}`,
+      );
+    }
   } else {
     const resolver = functions.find((entry) => entry.name === 'ft_resolve_transfer');
     assert(

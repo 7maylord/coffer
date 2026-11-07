@@ -136,6 +136,8 @@ describe('PolicyService', () => {
         });
       }),
       contractBinding: vi.fn().mockResolvedValue(null),
+      eligibleContractApprovers: vi.fn().mockResolvedValue([]),
+      bindVerifiedContract: vi.fn(),
       validApprovalUserIds: vi
         .fn()
         .mockImplementation(({ approvals }) =>
@@ -151,6 +153,7 @@ describe('PolicyService', () => {
     const verifier = new NearPolicyContractVerifier({
       view: vi.fn(),
       codeHash: vi.fn(),
+      accessKeys: vi.fn(),
     } as NearFinalViewClient);
     verifier.verify = verify;
     service = new PolicyService(store, engine, verifier, parseEnvironment());

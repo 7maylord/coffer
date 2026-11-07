@@ -17,7 +17,7 @@ const base64Digest = z
   });
 const jsonU64 = z.string().regex(/^(0|[1-9][0-9]*)$/);
 const accountId = z.string().min(2).max(64);
-const configurationSchema = z
+export const policyConfigurationSchema = z
   .object({
     state_version: z.literal(1),
     controller: accountId,
@@ -59,6 +59,7 @@ export interface NearFinalViewClient {
     blockHash?: string,
   ): Promise<FinalViewResult>;
   codeHash(contractAccountId: string, blockHash: string): Promise<string>;
+  accessKeys(contractAccountId: string, blockHash: string): Promise<number>;
 }
 
 export const NEAR_FINAL_VIEW_CLIENT = Symbol('NEAR_FINAL_VIEW_CLIENT');
@@ -100,6 +101,20 @@ export class NearRpcFinalViewClient implements NearFinalViewClient {
     });
     return result.hash;
   }
+
+  async accessKeys(
+    contractAccountId: string,
+    blockHash: string,
+  ): Promise<number> {
+    const result = await this.provider.query<{ keys: unknown[] }>({
+      request_type: 'view_access_key_list',
+      account_id: contractAccountId,
+      block_id: blockHash,
+    });
+    if (result.block_hash !== blockHash)
+      throw new Error('Access key block mismatch');
+    return result.keys.length;
+  }
 }
 
 export interface ContractVerificationEvidence {
@@ -130,7 +145,7 @@ export class NearPolicyContractVerifier {
         'get_configuration',
         {},
       );
-      const configuration = configurationSchema.parse(
+      const configuration = policyConfigurationSchema.parse(
         configurationResult.value,
       );
       const [codeHash, proposalResult] = await Promise.all([

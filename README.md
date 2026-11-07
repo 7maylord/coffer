@@ -1,6 +1,6 @@
 # Coffer
 
-Coffer is a NEAR-oriented finance operations prototype. The current local foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy and test-token contract packages. Runtime settlement remains deliberately **mock-only** while contract-first implementation is in progress, and synthetic payroll is the only seeded payroll data.
+Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet, while application settlement still defaults to **mock-only** until the wallet-signing and backend-verification path is integrated. Synthetic payroll is the only permitted demo payroll data.
 
 ## Requirements
 
@@ -46,6 +46,7 @@ pnpm typecheck
 pnpm test
 pnpm test:integration
 pnpm test:e2e
+pnpm test:e2e:fullstack
 pnpm build
 pnpm contracts:fmt
 pnpm contracts:lint
@@ -54,6 +55,56 @@ pnpm contracts:test
 pnpm contracts:check
 pnpm contracts:build
 ```
+
+`test:e2e:fullstack` starts the real frontend and backend on loopback, creates
+an isolated synthetic owner session in the local database, and proves J-01
+from invoice creation through mock settlement and reconciliation. It requires
+the migrated local PostgreSQL and Redis services; it never opens a wallet or
+moves testnet/mainnet funds.
+
+## NEAR testnet deployment
+
+| Contract | Account | Reproducible NEAR code hash |
+|---|---|---|
+| Policy commitments | `policy.olymight.testnet` | `EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj` |
+| Per-business policy factory | `factory.olymight.testnet` | `E39mq9jbJTMyqK82oxsGks78bw5n7JpmCxz1cC1RroLZ` |
+| Valueless test token | `ctusd.olymight.testnet` | `9ErFRZL31aDUPy6nBfztaCySidVzZsZsoyqP5x9NoM12` |
+
+The policy contract is configured with a 2-of-2 **test-key** quorum using
+`olymight.testnet` and `olumight.testnet`. Both keys have one operator, so this
+tests distinct cryptographic approvals but is not production segregation of
+duties. The token's canonical identity is
+`near:testnet:nep141:ctusd.olymight.testnet`; 10,000 ctUSD were minted and a
+1 ctUSD registration/transfer smoke test succeeded. ctUSD has no monetary value
+and is not USDC or a NEAR Intents asset.
+
+Deployment transactions and byte-for-byte artifact verification are recorded
+in [`contracts/near-policy/ARTIFACTS.md`](contracts/near-policy/ARTIFACTS.md),
+[`contracts/policy-factory/ARTIFACTS.md`](contracts/policy-factory/ARTIFACTS.md),
+and [`contracts/test-token/ARTIFACTS.md`](contracts/test-token/ARTIFACTS.md).
+
+## Next: first per-business instance
+
+The backend exposes owner-only preparation, sponsored-call preview, and verified
+binding for the deployed factory. It does not hold the provisioner key or
+broadcast transactions. The next testnet slice is:
+
+1. create a synthetic business, activate its first policy, and verify the two
+   approver wallets;
+2. request its canonical deployment preview, manually sign it as the scoped
+   provisioner, wait for `Active`, and bind the locked instance;
+3. expose an idempotent API that returns a canonical native-NEAR or ctUSD wallet
+   transaction without receiving a private key;
+4. let the frontend wallet sign and broadcast that exact transaction;
+5. submit only its transaction hash to the backend, which independently checks
+   finality, signer, receiver, amount, token code/metadata, action, receipts,
+   and NEP-141 event before posting the ledger or marking an invoice paid; and
+6. add API and browser E2E coverage for success, mismatch, replay, unknown RPC
+   status, unregistered receiver, and failed receipts.
+
+Keep `LIVE_TRANSFERS_ENABLED=false` and
+`NEAR_TESTNET_TRANSFERS_ENABLED=false` outside the short, explicitly reviewed
+test window. The public contract identifiers in `.env.example` are not secrets.
 
 ## Mock settlement
 
@@ -65,9 +116,10 @@ Supported scenarios are `success`, `refund`, `unknown`, `partial_deposit`, `expi
 
 - `SETTLEMENT_MODE=mock`
 - `LIVE_TRANSFERS_ENABLED=false`
+- `NEAR_TESTNET_TRANSFERS_ENABLED=false`
 - no provider credentials in the browser or repository
 - salary values are encrypted in the synthetic seed; the ephemeral seed key is discarded
-- the in-memory mock adapter is for the current foundation only; PostgreSQL-backed settlement persistence and a transactional outbox are Gate G1 work
+- PostgreSQL settlement persistence, the transactional outbox, and reconciliation are authoritative; wallet or frontend success text is never settlement evidence
 
 Research findings, provider assumptions, and architecture decisions are in [`docs/research-onboarding.md`](docs/research-onboarding.md), [`docs/provider-matrix.md`](docs/provider-matrix.md), and [`docs/adr/0001-local-foundation.md`](docs/adr/0001-local-foundation.md).
 

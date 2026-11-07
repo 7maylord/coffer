@@ -1,29 +1,23 @@
 # Policy factory testnet release
 
 Scope: FR-ID-002/003, FR-POL-001–003, FR-APR-001/002, FR-AUD-001,
-COF-301/302, ADR-0017, C-10 and G3/G4. This runbook is preparation; no factory
-or global policy code has been published by this work.
+COF-301/302, ADR-0017, C-10 and G3/G4. Steps 1–5 were completed on NEAR
+testnet on 2026-11-07; steps 6–7 remain the per-business onboarding path.
 
-## Current blocker and release inputs
+## Verified release inputs
 
-At a final NEAR testnet block on 2026-11-06, `olymight.testnet` held
-3.985377636930705599999998 NEAR and `factory.olymight.testnet` did not exist.
-The reviewed policy WASM is 217,225 bytes. [NEAR global contracts](https://docs.near.org/smart-contracts/global-contracts)
-charge roughly 10 NEAR per 100 KB, entirely burned, so this publication alone
-needs about 21.7 testnet NEAR, plus gas. Factory account creation and its regular
-WASM storage need additional NEAR. Fund the publisher with enough **testnet**
-NEAR and retain a buffer before running any signing command. Do not substitute
-the already deployed `policy.olymight.testnet`: it is a normal deployment, not
-an immutable global-code publication.
+The 217,225-byte reviewed policy WASM was published by immutable hash from
+`olumight.testnet`; [NEAR global contracts](https://docs.near.org/smart-contracts/global-contracts)
+burn roughly 10 NEAR per 100 KB. `factory.olymight.testnet` was created with 3
+testnet NEAR, then deployed and initialized atomically. Exact transactions and
+final byte/configuration evidence are in `ARTIFACTS.md`.
 
 The policy code hash for the prior reproducible release is
 `EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj`, with SHA-256
 `ce52eeb90fd2f44e14ee5cb7360211add760493174f1ac173a3ed9e33eb13d6c`.
 Its 32-byte hash as JSON base64 is
-`zlLuuQ/S9E4U7ly3NgIRrddgSTF08awXOj7Z4z6xPWw=`. Verify the actual release
-bytes again before using these values. The current factory WASM hash in
-`ARTIFACTS.md` is only a **local nonreproducible** build and is not a release
-hash.
+`zlLuuQ/S9E4U7ly3NgIRrddgSTF08awXOj7Z4z6xPWw=`. The reproducible factory hash
+is `E39mq9jbJTMyqK82oxsGks78bw5n7JpmCxz1cC1RroLZ`.
 
 ## Release sequence
 
@@ -60,11 +54,11 @@ hash.
    one required tenant binding and an audit event. Confirm a later proposal
    verification uses the new instance.
 
-The current CLI syntax for the first deployment operations is:
+The executed CLI shape for the first deployment operations was:
 
 ```sh
 # After the release artifact, funding, and review are complete:
-near contract deploy-as-global use-file contracts/near-policy/target/near/near_policy.wasm as-global-hash olymight.testnet network-config testnet sign-with-keychain send
+near contract deploy-as-global use-file contracts/near-policy/target/near/near_policy.wasm as-global-hash olumight.testnet network-config testnet sign-with-keychain send
 near account create-account fund-myself factory.olymight.testnet '3 NEAR' autogenerate-new-keypair save-to-keychain sign-as olymight.testnet network-config testnet sign-with-keychain send
 near contract deploy factory.olymight.testnet use-file contracts/policy-factory/target/near/policy_factory.wasm with-init-call init json-args '{"provisioner":"olymight.testnet","policy_code_hash":"zlLuuQ/S9E4U7ly3NgIRrddgSTF08awXOj7Z4z6xPWw="}' prepaid-gas '100 Tgas' attached-deposit '0 NEAR' network-config testnet sign-with-keychain send
 ```

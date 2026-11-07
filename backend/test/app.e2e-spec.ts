@@ -146,6 +146,24 @@ describe('AppController (e2e)', () => {
     }
   });
 
+  it('keeps sponsor-call previews owner-only and CSRF protected', async () => {
+    const path = '/v1/orgs/org_demo/policy-contract/deployment-preview';
+    const body = { controller: 'alice.testnet', approvers: ['alice.testnet'] };
+    await request(app.getHttpServer()).post(path).send(body).expect(401);
+    await request(app.getHttpServer())
+      .post(path)
+      .set('Cookie', authenticatedCookie)
+      .send(body)
+      .expect(401);
+    authStore.role = 'FINANCE_ADMIN';
+    await request(app.getHttpServer())
+      .post(path)
+      .set('Cookie', authenticatedCookie)
+      .set('X-CSRF-Token', csrfToken)
+      .send(body)
+      .expect(403);
+  });
+
   it('/ (GET)', () => {
     return request(app.getHttpServer()).get('/').expect(200).expect({
       name: 'coffer-api',

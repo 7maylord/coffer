@@ -27,6 +27,7 @@ import {
   SessionGuard,
 } from '../auth/auth.guards.js';
 import { PolicyService } from './policy.service.js';
+import { PolicyFactoryService } from './policy-factory.service.js';
 
 const hex32 = z.string().regex(/^[0-9a-f]{64}$/);
 const atomic = z.string().regex(/^[1-9][0-9]{0,77}$/);
@@ -58,6 +59,25 @@ const approvalSchema = z
       .min(2)
       .max(64)
       .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/),
+  })
+  .strict();
+const sponsoredDeploymentSchema = z
+  .object({
+    controller: z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/),
+    approvers: z
+      .array(
+        z
+          .string()
+          .min(2)
+          .max(64)
+          .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/),
+      )
+      .min(1)
+      .max(16),
   })
   .strict();
 const csrfHeader = { name: 'X-CSRF-Token', required: true } as const;
@@ -107,7 +127,64 @@ const materialOpenApiSchema = {
 export class PolicyController {
   constructor(
     @Inject(PolicyService) private readonly policies: PolicyService,
+    @Inject(PolicyFactoryService)
+    private readonly factory: PolicyFactoryService,
   ) {}
+
+  @Get('policy-contract/deployment')
+  @RequireOrganizationPermission('policy:manage')
+  @ApiParam({ name: 'orgId', type: String })
+  @ApiOperation({
+    summary: 'Prepare a provisioner-signed testnet policy instance call',
+  })
+  deployment(
+    @Req() request: AuthenticatedRequest,
+    @Param('orgId') organizationId: string,
+  ) {
+    return this.factory.prepare(requestPrincipal(request), organizationId);
+  }
+
+  @Post('policy-contract/deployment-preview')
+  @RequireOrganizationPermission('policy:manage')
+  @ApiHeader(csrfHeader)
+  @ApiParam({ name: 'orgId', type: String })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['controller', 'approvers'],
+      properties: {
+        controller: { type: 'string' },
+        approvers: { type: 'array', items: { type: 'string' }, maxItems: 16 },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Prepare an unsigned, sponsor-funded factory call' })
+  deploymentPreview(
+    @Req() request: AuthenticatedRequest,
+    @Param('orgId') organizationId: string,
+    @Body() body: unknown,
+  ) {
+    return this.factory.previewSponsoredCall(
+      requestPrincipal(request),
+      organizationId,
+      parse(sponsoredDeploymentSchema, body),
+    );
+  }
+
+  @Post('policy-contract/binding')
+  @RequireOrganizationPermission('policy:manage')
+  @ApiHeader(csrfHeader)
+  @ApiParam({ name: 'orgId', type: String })
+  @ApiOperation({
+    summary: 'Bind an active, final and verified factory policy instance',
+  })
+  bindContract(
+    @Req() request: AuthenticatedRequest,
+    @Param('orgId') organizationId: string,
+  ) {
+    return this.factory.bind(requestPrincipal(request), organizationId);
+  }
 
   @Post('policies')
   @RequireOrganizationPermission('policy:manage')

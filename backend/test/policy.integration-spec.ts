@@ -15,6 +15,7 @@ describe('policy and proposal transaction invariants', () => {
   const prisma = new PrismaClient({ datasourceUrl: environment.DATABASE_URL });
   const store = new PrismaPolicyStore(environment);
   const unavailableClient: NearFinalViewClient = {
+    accessKeys: vi.fn().mockRejectedValue(new Error('not configured')),
     view: vi.fn().mockRejectedValue(new Error('not configured')),
     codeHash: vi.fn().mockRejectedValue(new Error('not configured')),
   };
@@ -317,6 +318,56 @@ describe('policy and proposal transaction invariants', () => {
         new Date('2026-10-30T00:24:00.000Z'),
       ),
     ).rejects.toThrow('Approval quorum is no longer authorized');
+  });
+
+  it('binds a verified factory instance once, auditing the owner and rejecting one-human quorum', async () => {
+    const active = await service.activate(ownerId, organizationId, rules);
+    const input = {
+      organizationId,
+      actorUserId: ownerId,
+      network: 'testnet',
+      contractAccountId: `instance-${suffix}.testnet`,
+      expectedCodeHash: 'EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj',
+      organizationCommitment: 'd'.repeat(64),
+      policyDigest: active.digest,
+      policyVersion: active.version,
+      approvalThreshold: 2,
+      controller: `owner-${suffix}.testnet`,
+      approvers: [`owner-${suffix}.testnet`, `approver-a-${suffix}.testnet`],
+    };
+    await expect(
+      store.bindVerifiedContract({
+        ...input,
+        approvers: [
+          `approver-a-${suffix}.testnet`,
+          `approver-a-alt-${suffix}.testnet`,
+        ],
+      }),
+    ).rejects.toThrow('Distinct eligible owner and approvers required');
+    const binding = await store.bindVerifiedContract(input);
+    expect(binding).toMatchObject({
+      organizationId,
+      contractAccountId: input.contractAccountId,
+      required: true,
+    });
+    expect(await store.bindVerifiedContract(input)).toMatchObject({
+      id: binding.id,
+    });
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          organizationId,
+          eventType: 'POLICY_CONTRACT_BOUND',
+          entityId: binding.id,
+        },
+      }),
+    ).toBe(1);
+    await expect(
+      store.bindVerifiedContract({
+        ...input,
+        contractAccountId: `other-${suffix}.testnet`,
+      }),
+    ).rejects.toThrow('different contract binding');
   });
 
   async function latest() {

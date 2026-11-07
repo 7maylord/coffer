@@ -1,7 +1,7 @@
 # Coffer contract-first implementation plan
 
-- Status: executing; local backend and F-01 through F-07 code-owned implementation complete, release gates remain open
-- Date: 2026-11-02
+- Status: executing; contracts are deployed on testnet and local backend/F-01 through F-07 implementation is complete, release gates remain open
+- Date: 2026-11-06
 - Source of truth: `COFFER_PRD_TRD.md`
 - Required order: contracts, then backend, then frontend
 - Scope: hackathon P0 through Gates G0-G5; P1/P2 remain separately gated
@@ -19,7 +19,7 @@ submission checklist tasks.
 
 Implementation proceeds in three strict product phases:
 
-1. Complete two independently deployable NEAR contracts: the non-custodial policy and approval commitment contract, then the test-only NEP-141 `ctUSD` contract.
+1. Complete the independently deployable NEAR contracts: the non-custodial policy and approval commitment contract, the test-only NEP-141 `ctUSD` contract, then the optional policy-instance factory for multi-tenant isolation.
 2. Complete the backend and worker behavior against stable contract and OpenAPI boundaries.
 3. Replace the generated frontend with the complete user journeys after the backend API is stable.
 
@@ -31,8 +31,8 @@ This ordering changes the PRD's default critical path while preserving ADR-002 t
 
 | Area           | Current state                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Gap before product-complete                                                                                                                          |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Contracts      | Official `cargo near new` packages exist at `contracts/near-policy` and `contracts/test-token`; policy C-01 through C-05 and test-token C-08 are implemented and locally tested; C-06/C-09 are partial                                                                                                                                                                                                                                                                             | Complete reproducible artifacts and independent review; nothing is deployed                                                                          |
-| Backend        | B-01 through B-11 are complete for the local automated implementation: foundation safety, identity/tenancy, exact money and ledger reservations, deterministic policy/proposals, durable settlement/reconciliation, invoices, independently verified testnet evidence, guarded 1Click discovery/quotes/status, typed CFO suggestions, policy-governed mock agent commerce, encrypted synthetic payroll, hash-chained audit/operator operations, and the resilience/regression gate | Independent human security review remains required before COF-602 can be closed as a release gate                                                    |
+| Contracts      | Reproducible policy and test-token WASMs from commit `08d56ef` are deployed and byte-verified at `policy.olymight.testnet` and `ctusd.olymight.testnet`; policy uses a 2-of-2 test-key quorum, 10,000 valueless ctUSD were minted with a verified 1 ctUSD transfer, and the reproducible immutable-hash factory from `a915543` is deployed and byte/configuration-verified at `factory.olymight.testnet` | Independent contract review, independently controlled production approvers, a live per-business instance/binding E2E, and mainnet readiness remain open |
+| Backend        | B-01 through B-11 are complete for the local automated implementation; factory preparation and verified owner binding are now implemented and tested against local PostgreSQL | A deployed-factory binding E2E, later policy-version synchronization, live settlement API flow, and independent human security review remain open |
 | Frontend       | Interactive Coffer design plus F-01 authenticated NEAR/Privy sessions, F-02 authoritative invoice-to-mock-settlement, F-03 authoritative treasury/policy approval, F-04 evidence-bound automation, F-05 encrypted synthetic payroll, F-06 authoritative operations/audit, and F-07 responsive/accessibility/evidence hardening                                                                                                                                                    | Manual screen-reader/Safari/Firefox and hosted-CI evidence remain open; real wallet/Privy, deployed-contract, live NEAR AI attestation, fresh approval-signature and real-transfer evidence remain absent |
 | Infrastructure | PostgreSQL and Redis Compose, separate frontend/backend pnpm projects, transactional migrations, worker/concurrency tests, contract artifact checks, credential and dependency scans, type-aware linting, critical-test manifest, coverage gate, security regression, performance smoke, and frontend Chromium tests configured in CI                                                                                                                                              | Hosted CI execution and full-stack product journey gates remain unverified                                                                           |
 
@@ -53,6 +53,17 @@ The contract stores:
 - bounded structured events containing identifiers, digests, versions, and state only.
 
 The policy contract does not store or move fungible tokens. Any storage deposits are accounted for separately and cannot be treated as treasury assets. Adding NEP-141 transfers, Chain Signatures, cross-contract calls, upgrade execution, or asset custody to `near-policy` reopens architecture and audit review.
+
+#### 3.1.1 Multi-tenant policy deployment
+
+ADR-0017 adds `contracts/policy-factory`. It pins one reviewed global
+`near-policy` WASM by immutable code hash and creates one direct, locked policy
+subaccount per opaque organization commitment. The create-account, global-code
+attachment and policy initialization actions are atomic. The factory retains
+only caller-funded storage, restricts creation to an immutable provisioner to
+prevent commitment squatting, has no instance access key, cannot change its code
+hash, and cannot approve or execute payments. `ctUSD` remains a shared test
+token rather than a per-tenant deployment.
 
 ### 3.2 Test-token boundary
 
@@ -117,29 +128,56 @@ Progress snapshot on 2026-10-28:
   a one-NEAR overpayment beyond storage stake and protocol gas rewards. Unit
   quota fixtures exhaust and reject both 1,024 configuration records and 10,000
   proposal records before an additional write.
-- **C-05 complete locally; C-06 partial; C-07 open:** multi-account Sandbox deployment,
+- **C-05 and C-06 complete; C-07 open:** multi-account Sandbox deployment,
   outsider denial, storage underpayment, excess refund, pre-expiry denial,
   permissionless post-expiry finalization, atomic low-gas failure without state,
   duplicate approval denial, and
-  distinct-approver proposal/configuration quorum pass. A local locked policy
-  WASM/ABI build, checksum, ABI privacy scan, TypeScript interface/digest parity
-  fixture, and internal security
-  review are recorded. The reproducible release artifact and independent review
-  are outstanding.
-  `cargo near build reproducible-wasm` currently stops before Docker because the
-  workspace has no Git repository/HEAD; repository initialization remains outside
-  this contract slice.
+  distinct-approver proposal/configuration quorum pass. Locked WASM/ABI builds,
+  checksums, ABI privacy scan, TypeScript interface/digest parity, internal review,
+  and pinned reproducible artifacts are recorded. The deployed policy WASM was
+  downloaded and matched byte-for-byte. Independent review remains outstanding.
 - **C-08 complete locally:** `near-contract-standards 5.29.1` is locked; NEP-141,
   NEP-145, NEP-148, NEP-297, one-yocto issuer minting, maximum supply, and input
   bounds pass unit tests and internal review.
-- **C-09 partial:** local WASM/ABI/checksum evidence, an approval-gated non-executed
-  testnet runbook, and Sandbox registration/unauthorized-mint/exact-transfer/
+- **C-09 complete for the authorized testnet validation scope:** reproducible
+  WASM/ABI/checksum evidence, an executed approval-gated testnet runbook, deployed
+  code verification, mint/registration/transfer evidence, and Sandbox
+  registration/unauthorized-mint/exact-transfer/
   resolver-refund/unregistration evidence are recorded. Unit receipt assertions
   prove exact excess registration refunds, and Sandbox proves unforced positive-
   balance rejection plus forced burn/unregistration. Concurrent-call evidence
   now includes simultaneous independent signers transferring to one receiver,
-  with exact final balances and unchanged total supply;
-  a reproducible release build remains open.
+  with exact final balances and unchanged total supply. Production use remains
+  prohibited because ctUSD is a valueless issuer-controlled test asset.
+- **C-10 testnet deployment complete:** the immutable-hash policy factory
+  has bounded duplicate/collision protection, caller-funded storage, locked
+  subaccounts, atomic global-code attach/init, a private bounded callback,
+  compensating refund, unit action inspection and Sandbox configuration/key
+  verification. Its reviewed policy bytes were published globally by immutable
+  hash, and reproducible factory bytes were deployed and initialized at
+  `factory.olymight.testnet` on 2026-11-07. Final byte, policy-hash,
+  provisioner, deposit, balance and key checks passed. Backend owner-only preparation and final-chain binding are
+  implemented with code/configuration/key checks and transactional tenant
+  authorization; unit tests pass. App-driven signing, a live per-business
+  instance/binding integration test, independent audit and callback-stall
+  recovery remain unimplemented or unverified. Deployment transaction IDs and
+  exact hashes are recorded in `contracts/policy-factory/ARTIFACTS.md`.
+  Current binding supports policy version 1 only; on-chain quorum-governed
+  synchronization for organizations with later policy versions is open.
+  Owner-only sponsored-call preview now validates a distinct-human quorum and
+  returns exact unsigned factory args, provisioner signer, gas and deposit.
+  Coffer login does not deploy a contract; organization policy onboarding does.
+  Automatic sponsorship remains open pending a funded, scoped provisioner and
+  durable spend controls.
+  Sponsor-preview checks passed 300 backend unit tests, 38 PostgreSQL/Redis
+  integration tests (8 suite skips), 14 HTTP E2E tests, lint with existing
+  warnings, typecheck, build and OpenAPI freshness. The preview does not sign,
+  broadcast or reserve sponsor funds; it now verifies the deployed testnet factory.
+  This backend slice passed 297 unit tests, 38 PostgreSQL/Redis integration
+  tests (8 skipped by suite design), 13 HTTP E2E tests, strict typecheck,
+  lint, build and OpenAPI freshness. Factory Rust tests passed 11 unit plus
+  one local Sandbox global-publish/locked-instance test. The factory deployment
+  is verified on testnet; a live per-business instance and app binding are not.
 
 | Ticket | Work                                                                                                                                                                                         | Tests and evidence                                                                                                                                              | Exit dependency   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
@@ -152,8 +190,18 @@ Progress snapshot on 2026-10-28:
 | C-07   | Independent contract security review against current NEAR checklist                                                                                                                          | Every public method reviewed; caller identity, deposits, storage, overflow, events, migration, and privacy signed off                                           | C-06              |
 | C-08   | Replace the second generated tutorial with test-only NEP-141 `ctUSD`: six decimals, NEP-145 registration, NEP-148 metadata, NEP-297 events, owner-only bounded mint, no policy/Intents logic | T-FT-01 through T-FT-08; standard interface and metadata review                                                                                                 | C-01              |
 | C-09   | Add `ctUSD` Sandbox tests, locked WASM/ABI, checksum, README, and testnet deployment runbook without executing it                                                                            | Registered transfers/refunds, exact amounts, unauthorized mint denial, artifact checks                                                                          | C-08              |
+| C-10   | Add an immutable-global-hash factory that creates one locked policy subaccount per organization commitment and initializes the reviewed policy ABI atomically                              | T-FAC-01 through T-FAC-06: authorization, duplicate/collision/underfunding denial, callback refund/idempotency, no-key action inspection, Sandbox global publication/configuration | C-06              |
 
 Contract test IDs introduced by this plan:
+
+- **T-FAC-01:** only the immutable external provisioner can create an instance.
+- **T-FAC-02:** the action batch creates a direct account, funds it, uses the pinned global hash, initializes policy, and adds no key.
+- **T-FAC-03:** duplicate commitments and derived-account prefix collisions fail closed.
+- **T-FAC-04:** invalid approver sets, underfunded deployment and oversized pages fail closed; the 10,000-instance cap is code-reviewed but not exhaustion-tested.
+- **T-FAC-05:** success activates once; failure removes both indexes, refunds exactly once, and permits a retry.
+- **T-FAC-06:** Sandbox publishes immutable policy code, creates and initializes an instance, verifies configuration, and finds zero access keys.
+- **T-FAC-07:** owner preparation requires a verified owner wallet, distinct eligible humans, policy version 1, reviewed factory identity, and current on-chain minimum deposit.
+- **T-FAC-08:** backend binding rejects pending, mismatched, unlocked, stale-policy or unauthorized instances; one valid binding is tenant scoped, idempotent, required and audited.
 
 - **T-CON-01:** one account cannot satisfy a 2-of-N quorum twice.
 - **T-CON-02:** changed instruction, recipient commitment, amount, expiry, policy digest, or revision cannot reuse approvals.
@@ -891,10 +939,10 @@ server-only authorization inputs, exact atomic values, duplicate approver UX,
 quorum, revision invalidation, expiry, policy denial and fail-closed RPC
 verification. ADR-0014 records the boundary.
 
-Still unimplemented or unverified: the policy contract and test token remain
-undeployed, no organization has a retained contract-binding browser proof, no
-fresh wallet signature is requested for each approval, and no real custody
-balance or transfer is shown. The new wrapper routes were not exercised through
+At the F-03 checkpoint, the policy contract and test token remained
+undeployed; no organization had a retained contract-binding browser proof, no
+fresh wallet signature was requested for each approval, and no real custody
+balance or transfer was shown. The new wrapper routes were not exercised through
 a live PostgreSQL-backed HTTP integration test in this slice; their domain,
 repository primitives and mocked browser contracts are automated separately.
 No live wallet, provider request, deployment, blockchain transaction or fund
@@ -1087,3 +1135,74 @@ provider/RPC settlement and any live transaction or fund movement remain
 absent. F0, G4 and G5 therefore remain release gates rather than completion
 claims. The next smallest task is an authorized human accessibility/security
 review followed by a clean final-revision install.
+
+### Real frontend/backend J-01 integration checkpoint — 2026-11-06
+
+The J-01 browser integration portion of COF-201/202, FR-ID-002/004,
+FR-INV-001–003, FR-PAY-002/004–007 and Gate G2 now has a real full-stack
+Playwright path. `pnpm test:e2e:fullstack` starts Next and the compiled Nest
+application on loopback, creates an isolated synthetic owner session in local
+PostgreSQL, and drives invoice creation, issuance, hosted quote review, mock
+authorization, three independently persisted reconciliation polls, terminal
+`SETTLED`, invoice `PAID`, and an authenticated reload of the paid record.
+Redis and all 16 database migrations are prerequisites; no HTTP response is
+intercepted or replaced by a browser fixture in this test.
+
+The first run exposed a contract defect hidden by mocked frontend responses:
+organization endpoints returned lowercase roles while the session endpoint,
+OpenAPI schema, generated client and frontend guards require canonical Prisma
+role names such as `OWNER`. The organization service now returns the canonical
+enum unchanged, with focused unit coverage. It also exposed that Nest must be
+started through its supported compile path for decorator metadata; the harness
+uses `pnpm --dir backend start`, not `tsx src/main.ts`.
+
+Evidence from the final Node 24 run: focused organization tests pass 8/8 and
+the real full-stack J-01 test passes 1/1. The earlier same-day baseline passed
+lint, strict typecheck, OpenAPI freshness, 289 backend unit tests, 45
+PostgreSQL/Redis integration tests, 13 API E2E tests, both production builds,
+four frontend exact-money tests, and 67/68 Chromium UI tests with the intended
+desktop skip for the mobile-only 320 px case. The final regression after this
+checkpoint is recorded in the handoff.
+
+Still unimplemented or unverified: the real browser test begins from a seeded
+authenticated session, so it does not automate a wallet extension or fresh
+NEP-413 signature. It proves only deterministic mock settlement; it does not
+deploy a contract, sign a testnet transfer, call 1Click or NEAR AI, or move
+funds. The wider Gate G2 proposal/policy/approval chain and J-02–J-05 real
+frontend/backend browser paths remain separate integration work, and G3–G5
+remain open.
+
+### Reproducible NEAR testnet deployment checkpoint — 2026-11-06
+
+The separately authorized Gate G3/G4 contract validation is complete for the
+CLI-driven testnet scope of FR-POL-001–003, FR-APR-001/002, FR-PAY-003/007,
+FR-AUD-001/002, COF-203/301/302, ADR-0002/0004 and T-FT-01–08. Both contracts
+were rebuilt from commit `08d56ef` in the pinned cargo-near container and then
+deployed with their initializer in the same transaction.
+
+`policy.olymight.testnet` has reproducible NEAR code hash
+`EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj`, controller
+`olymight.testnet`, approvers `olymight.testnet`/`olumight.testnet`, threshold
+2, configuration version 1, and the commitment for the existing synthetic
+Northstar organization. Deployment transaction:
+`7bGFGwcifovDD2PahKwxW3TpwMZpZG8MxZnEXAicYipN`.
+
+`ctusd.olymight.testnet` has reproducible NEAR code hash
+`9ErFRZL31aDUPy6nBfztaCySidVzZsZsoyqP5x9NoM12`, six decimals, immutable issuer
+`olymight.testnet`, `test_only: true`, and a 1,000,000 ctUSD maximum supply.
+10,000 valueless ctUSD were minted in transaction
+`22Wx4cnkE1uuZT483qZfvBgS7fhf3qLGsRMwKKAX1c3k`. After registering
+`olumight.testnet` at the contract-reported storage minimum, transaction
+`4e9SNxg4DFXxSMT3Jzs5R3ch6QKt68FsjY8i5Wqnw73T` transferred exactly 1 ctUSD.
+Final balances are 9,999 ctUSD and 1 ctUSD; total supply is 10,000 ctUSD.
+Downloaded on-chain WASMs match the reproducible SHA-256 artifacts byte for
+byte.
+
+The two approver accounts have distinct Ed25519 keys but one human operator.
+This demonstrates a 2-of-2 test-key quorum and prevents duplicate account
+approval; it does not satisfy the production requirement for independent human
+control or segregation of duties. Gate G3 still needs an app-driven,
+independently reconciled transfer through the backend adapter. Gate G4 still
+needs the UI proposal/approval journey against this deployed contract. C-07,
+independent contract security review, remains open. No mainnet, 1Click, NEAR AI,
+payroll payout or production-value transaction occurred.

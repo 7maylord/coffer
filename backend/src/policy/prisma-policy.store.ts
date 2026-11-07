@@ -1,4 +1,5 @@
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import {
   FinancialProposalStatus,
   MembershipRole,
@@ -365,6 +366,144 @@ export class PrismaPolicyStore implements PolicyStore, OnModuleDestroy {
         organizationCommitment: true,
         required: true,
       },
+    });
+  }
+
+  async eligibleContractApprovers(organizationId: string, network: string) {
+    const memberships = await this.prisma.membership.findMany({
+      where: {
+        organizationId,
+        revokedAt: null,
+        role: { in: [MembershipRole.OWNER, MembershipRole.APPROVER] },
+      },
+      select: {
+        userId: true,
+        role: true,
+        user: {
+          select: {
+            walletAccounts: {
+              where: { network },
+              select: { accountId: true },
+            },
+          },
+        },
+      },
+    });
+    return memberships.flatMap(({ userId, role, user }) =>
+      user.walletAccounts.map(({ accountId }) => ({ userId, role, accountId })),
+    );
+  }
+
+  async bindVerifiedContract(
+    input: Parameters<PolicyStore['bindVerifiedContract']>[0],
+  ) {
+    return this.serializable(async (transaction) => {
+      await transaction.$queryRaw`
+        SELECT "id" FROM "Organization"
+        WHERE "id" = ${input.organizationId}::uuid FOR UPDATE
+      `;
+      const policy = await transaction.policyDefinition.findFirst({
+        where: { organizationId: input.organizationId, supersededAt: null },
+      });
+      if (
+        !policy ||
+        policy.digest !== input.policyDigest ||
+        policy.version !== input.policyVersion ||
+        (policy.rules as { approvalThreshold?: number }).approvalThreshold !==
+          input.approvalThreshold
+      )
+        throw new PolicyConflictError('Active policy changed before binding');
+      const memberships = await transaction.membership.findMany({
+        where: {
+          organizationId: input.organizationId,
+          revokedAt: null,
+          role: { in: [MembershipRole.OWNER, MembershipRole.APPROVER] },
+        },
+        select: {
+          userId: true,
+          role: true,
+          user: {
+            select: {
+              walletAccounts: {
+                where: {
+                  network: input.network,
+                  accountId: { in: input.approvers },
+                },
+                select: { accountId: true },
+              },
+            },
+          },
+        },
+      });
+      const accountOwners = new Map(
+        memberships.flatMap(({ userId, user }) =>
+          user.walletAccounts.map(
+            ({ accountId }) => [accountId, userId] as const,
+          ),
+        ),
+      );
+      if (
+        input.approvers.length < input.approvalThreshold ||
+        !input.approvers.includes(input.controller) ||
+        new Set(input.approvers).size !== input.approvers.length ||
+        new Set(input.approvers.map((account) => accountOwners.get(account)))
+          .size !== input.approvers.length ||
+        input.approvers.some((account) => !accountOwners.has(account)) ||
+        !memberships.some(
+          ({ userId, role, user }) =>
+            userId === input.actorUserId &&
+            role === MembershipRole.OWNER &&
+            user.walletAccounts.some(
+              ({ accountId }) => accountId === input.controller,
+            ),
+        )
+      )
+        throw new PolicyAuthorizationError(
+          'Distinct eligible owner and approvers required',
+        );
+      const existing = await transaction.policyContractBinding.findUnique({
+        where: { organizationId: input.organizationId },
+      });
+      if (existing) {
+        if (
+          existing.network !== input.network ||
+          existing.contractAccountId !== input.contractAccountId ||
+          existing.expectedCodeHash !== input.expectedCodeHash ||
+          existing.organizationCommitment !== input.organizationCommitment ||
+          !existing.required
+        )
+          throw new PolicyConflictError(
+            'Organization already has a different contract binding',
+          );
+        return existing;
+      }
+      const binding = await transaction.policyContractBinding.create({
+        data: {
+          organizationId: input.organizationId,
+          network: input.network,
+          contractAccountId: input.contractAccountId,
+          expectedCodeHash: input.expectedCodeHash,
+          organizationCommitment: input.organizationCommitment,
+          required: true,
+          verifiedAt: new Date(),
+        },
+      });
+      await transaction.auditEvent.create({
+        data: {
+          organizationId: input.organizationId,
+          actorId: input.actorUserId,
+          eventType: 'POLICY_CONTRACT_BOUND',
+          entityType: 'POLICY_CONTRACT_BINDING',
+          entityId: binding.id,
+          correlationId: randomUUID(),
+          metadata: {
+            network: input.network,
+            contractAccountId: input.contractAccountId,
+            expectedCodeHash: input.expectedCodeHash,
+          },
+        },
+      });
+      return binding;
     });
   }
 
