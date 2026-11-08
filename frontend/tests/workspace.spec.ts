@@ -44,7 +44,9 @@ test("every page renders without errors, external service calls, or horizontal o
       ),
     ).toBeTruthy();
     if (route)
-      await expect(page.getByText("DEMO MODE", { exact: true })).toBeVisible();
+      await expect(
+        page.getByText("SAMPLE DATA", { exact: true }),
+      ).toBeVisible();
   }
   expect(errors).toEqual([]);
   expect(external).toEqual([]);
@@ -65,25 +67,27 @@ test("invoice draft, validation, filtering, preview, and CSV export", async ({
   await page
     .getByRole("button", { name: "Create invoice", exact: true })
     .click();
-  await page.getByLabel("Demo client").fill("Acme Demo");
+  await page.getByLabel("Client").fill("Acme Studio");
   await page.getByLabel("What is it for?").fill("Synthetic brand design");
-  await page.getByLabel("Amount · demo USD").fill("10.001");
+  await page.getByLabel("Amount · USD").fill("10.001");
   await page.getByRole("button", { name: "Create draft", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "two decimal places",
   );
-  await page.getByLabel("Amount · demo USD").fill("100.01");
+  await page.getByLabel("Amount · USD").fill("100.01");
   await page.getByRole("button", { name: "Create draft", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByLabel("Find an invoice").fill("Acme Demo");
+  await page.getByLabel("Find an invoice").fill("Acme Studio");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody")).toContainText("$100.01");
-  await page.getByRole("button", { name: "View INV-DEMO-6" }).click();
+  await page.getByRole("button", { name: "View INV-1043" }).click();
   await expect(page.getByRole("dialog")).toContainText("Preview only");
   await page.getByRole("button", { name: "Close dialog" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
-  expect((await download).suggestedFilename()).toBe("coffer-demo-invoices.csv");
+  expect((await download).suggestedFilename()).toBe(
+    "coffer-sample-invoices.csv",
+  );
   await page.getByLabel("Find an invoice").fill("no-match");
   await expect(page.getByText("No invoices here, yet.")).toBeVisible();
 });
@@ -93,14 +97,14 @@ test("treasury proposals flow into a single demo review without moving money", a
 }) => {
   await page.goto("/demo/treasury");
   await page.getByRole("button", { name: "Propose allocation" }).click();
-  await page.getByLabel("Total allocation · demo USD").fill("70000");
-  await page.getByRole("button", { name: "Create demo proposal" }).click();
+  await page.getByLabel("Total allocation · USD").fill("70000");
+  await page.getByRole("button", { name: "Create proposal" }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "exceeds",
   );
-  await page.getByLabel("Total allocation · demo USD").fill("100.01");
+  await page.getByLabel("Total allocation · USD").fill("100.01");
   await expect(page.getByRole("dialog")).toContainText("$20.01");
-  await page.getByRole("button", { name: "Create demo proposal" }).click();
+  await page.getByRole("button", { name: "Create proposal" }).click();
   await navigate(page, "Approvals", isMobile);
   await page
     .locator("article")
@@ -108,16 +112,16 @@ test("treasury proposals flow into a single demo review without moving money", a
     .getByRole("button", { name: "View proposal" })
     .click();
   await expect(page.getByRole("dialog")).toContainText("Disabled");
-  await page.getByRole("button", { name: "Record demo review" }).click();
+  await page.getByRole("button", { name: "Record review" }).click();
   await page.getByRole("button", { name: "Reviewed", exact: true }).click();
   const card = page
     .locator("article")
     .filter({ hasText: "Studio revenue allocation" });
-  await expect(card).toContainText("1 of 2 demo reviews");
+  await expect(card).toContainText("1 of 2 reviews");
   await card.getByRole("button", { name: "View proposal" }).click();
-  await expect(
-    page.getByRole("button", { name: "Record demo review" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record review" })).toHaveCount(
+    0,
+  );
 });
 test("CFO proposals, agent pause, and payroll disclosures", async ({
   page,
@@ -129,7 +133,7 @@ test("CFO proposals, agent pause, and payroll disclosures", async ({
   await expect(page.getByText("$20.01", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Send to human review" }).click();
   await expect(
-    page.getByRole("button", { name: "Sent to demo review" }),
+    page.getByRole("button", { name: "Sent for review" }),
   ).toBeDisabled();
   await navigate(page, "Agents", isMobile);
   await page.getByRole("button", { name: "Pause Scout" }).click();
@@ -144,11 +148,11 @@ test("CFO proposals, agent pause, and payroll disclosures", async ({
   await page.getByRole("button", { name: "Close dialog" }).click();
   await navigate(page, "Payroll", isMobile);
   await expect(
-    page.getByText("Hiding demo amounts is a display preference", {
+    page.getByText("Hiding sample amounts is a display preference", {
       exact: false,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Show demo amounts" }).click();
+  await page.getByRole("button", { name: "Show sample amounts" }).click();
   await expect(page.getByText("$4,200.00", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Preview", exact: true })
@@ -168,15 +172,17 @@ test("command palette, motion preference, settings and reset", async ({
     .getByRole("dialog")
     .getByRole("button", { name: "Settings", exact: true })
     .click();
-  await page.getByLabel("Demo workspace name").fill("Demo Collective");
+  await page.getByLabel("Workspace name").fill("Northstar Collective");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("status")).toContainText("updated");
   await page.getByRole("switch", { name: "Reduce motion" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-motion", "reduced");
   await page.getByRole("button", { name: "Start fresh" }).click();
-  await page.getByRole("button", { name: "Reset demo", exact: true }).click();
-  await expect(page.getByLabel("Demo workspace name")).toHaveValue(
-    "Forma Studio",
+  await page
+    .getByRole("button", { name: "Reset sample data", exact: true })
+    .click();
+  await expect(page.getByLabel("Workspace name")).toHaveValue(
+    "Northstar Studio",
   );
   await expect(page.getByRole("switch")).not.toBeChecked();
 });

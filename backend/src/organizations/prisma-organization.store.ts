@@ -34,7 +34,12 @@ export class PrismaOrganizationStore
             role: MembershipRole.OWNER,
           },
         });
-        return { ...organization, role: MembershipRole.OWNER };
+        return {
+          id: organization.id,
+          slug: organization.slug,
+          name: organization.name,
+          role: MembershipRole.OWNER,
+        };
       });
     } catch (error: unknown) {
       if (

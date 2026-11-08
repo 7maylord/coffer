@@ -36,8 +36,6 @@ const databaseRole: Readonly<Record<InviteRole, MembershipRole>> = {
   viewer: MembershipRole.VIEWER,
 };
 
-const apiRole = (role: MembershipRole) => role.toLowerCase();
-
 @Injectable()
 export class OrganizationService {
   constructor(
@@ -51,14 +49,16 @@ export class OrganizationService {
       ...input,
     });
     if (!organization) throw new ConflictException('Organization slug exists');
-    return { ...organization, role: apiRole(organization.role) };
+    return {
+      id: organization.id,
+      slug: organization.slug,
+      name: organization.name,
+      role: organization.role,
+    };
   }
 
   async list(userId: string) {
-    return (await this.store.listOrganizations(userId)).map((organization) => ({
-      ...organization,
-      role: apiRole(organization.role),
-    }));
+    return this.store.listOrganizations(userId);
   }
 
   async invite(
@@ -97,14 +97,11 @@ export class OrganizationService {
       now,
     });
     if (!accepted) throw new NotFoundException();
-    return { ...accepted, role: apiRole(accepted.role) };
+    return accepted;
   }
 
   async members(organizationId: string) {
-    return (await this.store.listMembers(organizationId)).map((member) => ({
-      ...member,
-      role: apiRole(member.role),
-    }));
+    return this.store.listMembers(organizationId);
   }
 
   async revokeMember(

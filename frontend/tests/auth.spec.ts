@@ -35,7 +35,9 @@ test("logged-out and unavailable sessions fail closed", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Continue with a NEAR wallet" }),
   ).toBeVisible();
-  await expect(page.getByText("Privy social login is available")).toBeVisible();
+  await expect(
+    page.getByText(/Privy social login is available|Continue with Privy/),
+  ).toBeVisible();
 
   await page.unroute("**/api/coffer/v1/auth/session");
   await page.route("**/api/coffer/v1/auth/session", (route) =>
@@ -56,9 +58,7 @@ test("verified session restores organization identity and role guards", async ({
 }) => {
   await mockAuthenticated(page, "EMPLOYEE");
   await page.goto("/payroll");
-  await expect(
-    page.getByText("TESTNET SESSION", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(
@@ -89,9 +89,11 @@ test("a revoked or expired session returns to sign-in on revalidation", async ({
     route.fulfill({ status: 200, json: [organization()] }),
   );
   await page.goto("/overview");
+  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("TESTNET SESSION", { exact: true }),
+    page.getByText("Sample records stay isolated", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByText("SAMPLE DATA", { exact: true })).toHaveCount(0);
   active = false;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(
@@ -120,9 +122,7 @@ test("logout supplies CSRF and clears the authenticated shell", async ({
     await route.fulfill({ status: 201, json: { status: "revoked" } });
   });
   await page.goto("/overview");
-  await expect(
-    page.getByText("TESTNET SESSION", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("button", { name: /jamie\.testnet owner/i }).click();
@@ -173,10 +173,11 @@ test("first wallet session creates an owner organization with CSRF", async ({
   await page.getByLabel("Workspace name").fill("North Star");
   await expect(page.getByLabel("Workspace URL key")).toHaveValue("north-star");
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await expect(
-    page.getByText("TESTNET SESSION", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.getByRole("link", { name: /North Star/i })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "North Star is ready." }),
+  ).toBeVisible();
 });

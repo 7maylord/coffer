@@ -55,54 +55,54 @@ export type DemoState = {
 };
 export function initialDemo(): DemoState {
   return {
-    workspace: "Forma Studio",
+    workspace: "Northstar Studio",
     reducedMotion: false,
     invoices: [
       {
-        id: "INV-024",
-        client: "Orbit Labs",
-        initials: "O",
-        description: "Brand strategy & identity",
-        amount: "1250000",
-        due: "2026-11-12",
+        id: "INV-1042",
+        client: "Atlas Health",
+        initials: "AH",
+        description: "Patient onboarding product redesign",
+        amount: "1875000",
+        due: "2026-11-18",
         status: "Awaiting payment",
         color: "lilac",
       },
       {
-        id: "INV-023",
-        client: "Layers",
-        initials: "L",
-        description: "Product design retainer",
+        id: "INV-1041",
+        client: "Cedar & Finch",
+        initials: "CF",
+        description: "October brand design retainer",
         amount: "840000",
-        due: "2026-11-08",
+        due: "2026-11-05",
         status: "Paid",
         color: "peach",
       },
       {
-        id: "INV-022",
-        client: "Pallet",
-        initials: "P",
-        description: "Website design & development",
-        amount: "620000",
-        due: "2026-10-27",
+        id: "INV-1040",
+        client: "Harbor Labs",
+        initials: "HL",
+        description: "Investor portal design and development",
+        amount: "1420000",
+        due: "2026-10-31",
         status: "Overdue",
         color: "sage",
       },
       {
-        id: "INV-021",
-        client: "Good Things",
-        initials: "G",
-        description: "Creative direction",
-        amount: "450000",
-        due: "2026-11-18",
+        id: "INV-1039",
+        client: "Lumen Works",
+        initials: "LW",
+        description: "Q4 campaign creative direction",
+        amount: "675000",
+        due: "2026-11-25",
         status: "Draft",
         color: "yellow",
       },
       {
-        id: "INV-020",
-        client: "Linear Works",
-        initials: "LW",
-        description: "October design partnership",
+        id: "INV-1038",
+        client: "Fieldstone Coffee",
+        initials: "FC",
+        description: "Retail launch identity system",
         amount: "980000",
         due: "2026-10-24",
         status: "Paid",
@@ -116,7 +116,7 @@ export function initialDemo(): DemoState {
         category: "Payroll",
         amount: "1840000",
         status: "Needs review",
-        signers: ["Demo co-owner"],
+        signers: ["Maya Chen"],
       },
       {
         id: "PROP-007",
@@ -132,7 +132,7 @@ export function initialDemo(): DemoState {
         category: "Agent purchase",
         amount: "1200",
         status: "Needs review",
-        signers: ["Demo co-owner"],
+        signers: ["Maya Chen"],
       },
     ],
     agents: [
@@ -170,8 +170,8 @@ export function initialDemo(): DemoState {
     activity: [
       {
         id: "EV-104",
-        title: "Invoice INV-023 reconciled",
-        detail: "Layers · simulated settlement",
+        title: "Invoice INV-1041 reconciled",
+        detail: "Cedar & Finch · settlement recorded",
         category: "Invoices",
         time: "10:42",
       },
@@ -185,7 +185,7 @@ export function initialDemo(): DemoState {
       {
         id: "EV-102",
         title: "Scout completed 24 classifications",
-        detail: "Allowlisted mock service · within budget",
+        detail: "Allowlisted document service · within budget",
         category: "Agents",
         time: "09:48",
       },
@@ -234,7 +234,7 @@ export function exportCsv(invoices: Invoice[]) {
   const cell = (value: string) =>
     `"${(/^[=+@\-\t\r]/.test(value) ? "'" : "") + value.replaceAll('"', '""')}"`;
   const text = [
-    "Invoice,Client,Amount (demo USD),Status,Due",
+    "Invoice,Client,Amount (USD),Status,Due",
     ...invoices.map((i) =>
       [i.id, i.client, money(i.amount), i.status, i.due].map(cell).join(","),
     ),
@@ -244,7 +244,7 @@ export function exportCsv(invoices: Invoice[]) {
   );
   const link = document.createElement("a");
   link.href = url;
-  link.download = "coffer-demo-invoices.csv";
+  link.download = "coffer-sample-invoices.csv";
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

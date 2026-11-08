@@ -30,16 +30,23 @@ describe('OrganizationService', () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  it('creates and lists owner memberships with API role names', async () => {
+  it('creates and lists memberships with canonical role names', async () => {
     createOrganization.mockResolvedValueOnce({
       id: 'org_1',
       slug: 'northstar',
       name: 'Northstar',
       role: MembershipRole.OWNER,
+      createdAt: new Date('2026-10-30T00:00:00.000Z'),
+      updatedAt: new Date('2026-10-30T00:00:00.000Z'),
     });
     await expect(
       service.create('owner_1', { slug: 'northstar', name: 'Northstar' }),
-    ).resolves.toMatchObject({ role: 'owner' });
+    ).resolves.toEqual({
+      id: 'org_1',
+      slug: 'northstar',
+      name: 'Northstar',
+      role: 'OWNER',
+    });
     expect(createOrganization).toHaveBeenCalledWith({
       userId: 'owner_1',
       slug: 'northstar',
@@ -55,7 +62,7 @@ describe('OrganizationService', () => {
       },
     ]);
     await expect(service.list('user_1')).resolves.toEqual([
-      expect.objectContaining({ role: 'finance_admin' }),
+      expect.objectContaining({ role: 'FINANCE_ADMIN' }),
     ]);
   });
 
@@ -98,7 +105,7 @@ describe('OrganizationService', () => {
     });
     await expect(service.accept(principal, 't'.repeat(43))).resolves.toEqual({
       organizationId: 'org_1',
-      role: 'viewer',
+      role: 'VIEWER',
     });
     expect(acceptInvite).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -117,7 +124,7 @@ describe('OrganizationService', () => {
       },
     ]);
     await expect(service.members('org_1')).resolves.toEqual([
-      expect.objectContaining({ role: 'auditor' }),
+      expect.objectContaining({ role: 'AUDITOR' }),
     ]);
   });
 

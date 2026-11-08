@@ -24,7 +24,7 @@ authoritative. Frontend role guards reduce confusing navigation but are not a
 security boundary.
 
 Privy is an optional wallet provider, not a second Coffer authentication
-authority. When both public Privy client identifiers are configured, the app
+authority. When the public Privy App ID is configured, the app
 loads `@privy-io/react-auth` 3.51.0, creates a Privy NEAR wallet through the
 extended-chains API when required, and registers
 `@peerfolio/privy-near-connect` 0.0.8 with NEAR Connect 0.11.4. That wallet must
@@ -51,3 +51,7 @@ credentials or interactive wallet were available locally, so the real popup,
 testnet RPC verification from a browser-signed challenge, and provider
 dashboard origin configuration remain manual release evidence. No transaction,
 access key or fund movement is part of sign-in.
+
+Authenticated overview/settings routes do not render or initialize the local
+demo fixtures. `/demo/*` keeps its in-memory synthetic state; canonical routes
+use only the verified session and server-returned organization membership.

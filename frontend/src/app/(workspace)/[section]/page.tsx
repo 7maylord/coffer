@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { pages } from "@/lib/demo";
-import { WorkspacePage } from "@/components/coffer/pages";
 import { AuthenticatedInvoices } from "@/components/invoices/authenticated-invoices";
 import {
   AuthenticatedApprovals,
@@ -12,6 +11,10 @@ import {
 } from "@/components/automation/authenticated-automation";
 import { AuthenticatedPayroll } from "@/components/payroll/authenticated-payroll";
 import { AuthenticatedOperations } from "@/components/operations/authenticated-operations";
+import {
+  AuthenticatedOverview,
+  AuthenticatedSettings,
+} from "@/components/auth/authenticated-home";
 export function generateStaticParams() {
   return pages.map((page) => ({ section: page.id }));
 }
@@ -33,6 +36,7 @@ export default async function Page({
   const { section } = await params;
   const page = pages.find((page) => page.id === section);
   if (!page) notFound();
+  if (page.id === "overview") return <AuthenticatedOverview />;
   if (page.id === "invoices") return <AuthenticatedInvoices />;
   if (page.id === "treasury") return <AuthenticatedTreasury />;
   if (page.id === "approvals") return <AuthenticatedApprovals />;
@@ -40,5 +44,6 @@ export default async function Page({
   if (page.id === "agents") return <AuthenticatedAgents />;
   if (page.id === "payroll") return <AuthenticatedPayroll />;
   if (page.id === "activity") return <AuthenticatedOperations />;
-  return <WorkspacePage page={page.id} />;
+  if (page.id === "settings") return <AuthenticatedSettings />;
+  notFound();
 }

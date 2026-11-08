@@ -56,7 +56,7 @@ export function Landing() {
             Our approach
           </a>
           <Link href="/demo/overview">
-            Explore the demo <Icon name="northeast" size={15} />
+            Explore a workspace <Icon name="northeast" size={15} />
           </Link>
         </nav>
         <Link href="/overview" className="button dark nav-cta">
@@ -91,7 +91,7 @@ export function Landing() {
               Find your flow <Icon name="northeast" />
             </Link>
             <div className="hero-footnote">
-              <span className="tiny-symbol">↳</span> An interactive demo. Room
+              <span className="tiny-symbol">↳</span> An interactive sample. Room
               to explore.
             </div>
           </div>
@@ -194,7 +194,7 @@ export function Landing() {
           <Link
             className="round-cta"
             href="/demo/overview"
-            aria-label="Enter the demo workspace"
+            aria-label="Enter the sample workspace"
           >
             <Icon name="northeast" size={44} />
           </Link>
@@ -212,7 +212,7 @@ export function Landing() {
         </Link>
         <span>Considered money. Collective possibility.</span>
         <Link href="/demo/settings">
-          Demo & privacy notes <Icon name="northeast" size={14} />
+          Sample & privacy notes <Icon name="northeast" size={14} />
         </Link>
         <span>© 2026 Coffer</span>
       </footer>

@@ -110,7 +110,7 @@ function Overview() {
   return (
     <>
       <Heading
-        eyebrow="FRIDAY, OCTOBER 30 / DEMO SNAPSHOT"
+        eyebrow="FRIDAY, OCTOBER 30 / WORKSPACE SNAPSHOT"
         title={
           <>
             Good things ahead, <em>Jamie.</em>
@@ -137,7 +137,7 @@ function Overview() {
             $64,280<span>.00</span>
           </div>
           <div className="balance-comparison">
-            <span>↗ 12.8%</span> versus previous demo month
+            <span>↗ 12.8%</span> versus previous month
           </div>
           <div className="balance-bottom">
             <span>Illustrative USD · Internal ledger</span>
@@ -225,7 +225,7 @@ function Overview() {
                 </span>
                 <span>
                   <strong>{item.title}</strong>
-                  <small>{item.signers.length} of 2 demo reviews</small>
+                  <small>{item.signers.length} of 2 reviews</small>
                 </span>
                 <Icon name="chevron" size={16} />
               </WorkspaceLink>
@@ -344,7 +344,7 @@ function InvoiceRows({
         <div className="empty-state">
           <Icon name="search" size={28} />
           <h3>No invoices here, yet.</h3>
-          <p>Try another search or create your first demo invoice.</p>
+          <p>Try another search or create your first invoice.</p>
         </div>
       )}
     </div>
@@ -378,13 +378,13 @@ function Invoices() {
       const client = String(data.get("client")).trim();
       const description = String(data.get("description")).trim();
       if (!client || !description)
-        throw new Error("Add a demo client and description.");
+        throw new Error("Add a client and description.");
       const amount = parseMoney(String(data.get("amount")));
       const due = String(data.get("due"));
       if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !Number.isFinite(Date.parse(due)))
         throw new Error("Choose a valid due date.");
       const invoice: Invoice = {
-        id: `INV-DEMO-${state.invoices.length + 1}`,
+        id: `INV-${1038 + state.invoices.length}`,
         client,
         initials: client.slice(0, 2).toUpperCase(),
         description,
@@ -399,12 +399,12 @@ function Invoices() {
       }));
       record(
         `${invoice.id} drafted`,
-        `${client} · local demo only`,
+        `${client} · local sample only`,
         "Invoices",
       );
       setCreate(false);
       setFilter("All invoices");
-      notify("Your demo invoice is drafted. No invoice was sent.");
+      notify("Your invoice is drafted. No invoice was sent.");
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Unable to create draft.",
@@ -441,7 +441,7 @@ function Invoices() {
         <Stat
           label="Outstanding"
           value={sum(["Awaiting payment", "Overdue"])}
-          detail="Across open demo invoices"
+          detail="Across open invoices"
           icon="invoice"
         />
         <Stat
@@ -504,11 +504,11 @@ function Invoices() {
       {create && (
         <Modal title="A new beginning." close={() => setCreate(false)}>
           <p className="modal-description">
-            Create a local demo invoice. Use fictional information only.
+            Create a sample invoice. Use fictional information only.
           </p>
           <form onSubmit={createInvoice} className="form-stack">
             <label>
-              Demo client
+              Client
               <input
                 name="client"
                 required
@@ -527,7 +527,7 @@ function Invoices() {
             </label>
             <div className="form-grid">
               <label>
-                Amount · demo USD
+                Amount · USD
                 <input
                   name="amount"
                   inputMode="decimal"
@@ -580,10 +580,10 @@ function Invoices() {
               <strong>{money(selected.amount)}</strong>
             </div>
             <div className="invoice-total">
-              <span>Total · demo USD</span>
+              <span>Total · USD</span>
               <strong>{money(selected.amount)}</strong>
             </div>
-            <small>Due {selected.due} · Synthetic invoice</small>
+            <small>Due {selected.due} · Fictional sample invoice</small>
           </div>
           <p className="quiet-note">
             <Icon name="lock" size={16} />
@@ -611,7 +611,7 @@ function Treasury() {
     try {
       const total = parseMoney(amount);
       if (BigInt(total) > 6428000n)
-        throw new Error("The proposal exceeds the $64,280 demo treasury.");
+        throw new Error("The proposal exceeds the $64,280 available treasury.");
       const id = crypto.randomUUID();
       setState((previous) => ({
         ...previous,
@@ -633,7 +633,7 @@ function Treasury() {
         "Treasury",
       );
       setOpen(false);
-      notify("Allocation sent to demo review. No funds reserved or moved.");
+      notify("Allocation sent for review. No funds reserved or moved.");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Invalid allocation.");
     }
@@ -701,7 +701,7 @@ function Treasury() {
               <span className="avatar peach">JD</span>
               <span className="avatar sage">AK</span>
               <span className="avatar lilac">ML</span>
-              <span>3 demo co-owners</span>
+              <span>3 co-owners</span>
             </div>
           </section>
           <section className="panel treasury-policy">
@@ -750,7 +750,7 @@ function Treasury() {
               assigned to reserves.
             </p>
             <label>
-              Total allocation · demo USD
+              Total allocation · USD
               <input
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
@@ -774,7 +774,7 @@ function Treasury() {
               </p>
             )}
             <button className="button dark" type="submit">
-              Create demo proposal <Icon name="arrow" size={17} />
+              Create proposal <Icon name="arrow" size={17} />
             </button>
           </form>
         </Modal>
@@ -796,7 +796,7 @@ function Approvals() {
           ? {
               ...a,
               status: reject ? "Rejected" : "Reviewed",
-              signers: reject ? a.signers : [...a.signers, "You (demo)"],
+              signers: reject ? a.signers : [...a.signers, "Jamie Davis"],
             }
           : a,
       ),
@@ -809,8 +809,8 @@ function Approvals() {
     setSelected(null);
     notify(
       reject
-        ? "Demo proposal rejected."
-        : "Demo review recorded. No signature or payment was submitted.",
+        ? "Proposal rejected."
+        : "Review recorded. No signature or payment was submitted.",
     );
   }
   return (
@@ -865,7 +865,7 @@ function Approvals() {
               <h2>{item.title}</h2>
               <div className="proposal-amount">
                 {money(item.amount)}
-                <span>demo USD</span>
+                <span>USD</span>
               </div>
               <div className="proposal-checks">
                 <span>
@@ -880,7 +880,7 @@ function Approvals() {
                   <span className="avatar lilac">
                     {item.signers.length > 0 ? "AK" : "—"}
                   </span>
-                  {item.signers.length} of 2 demo reviews
+                  {item.signers.length} of 2 reviews
                 </span>
                 <button
                   className="button small"
@@ -914,7 +914,7 @@ function Approvals() {
             </div>
             <div>
               <span>Current reviews</span>
-              <strong>{selected.signers.length} / 2 demo people</strong>
+              <strong>{selected.signers.length} / 2 reviewers</strong>
             </div>
             <div>
               <span>Execution</span>
@@ -932,7 +932,7 @@ function Approvals() {
                 Reject proposal
               </button>
               <button className="button dark" onClick={() => decide(false)}>
-                Record demo review <Icon name="check" size={17} />
+                Record review <Icon name="check" size={17} />
               </button>
             </div>
           )}
@@ -953,7 +953,7 @@ function Cfo() {
     try {
       const cents = parseMoney(total);
       if (BigInt(cents) > 6428000n)
-        throw new Error("Stay within the $64,280 demo treasury.");
+        throw new Error("Stay within the $64,280 available treasury.");
       setAllocation(splitAllocation(cents));
       setGenerated(true);
       setSent(false);
@@ -981,11 +981,11 @@ function Cfo() {
     }));
     record(
       "CFO allocation sent for review",
-      "Deterministic demo · no model request",
+      "Deterministic preview · no model request",
       "Treasury",
     );
     setSent(true);
-    notify("Sage’s demo proposal is ready in Approvals.");
+    notify("Sage’s proposal is ready in Approvals.");
   }
   return (
     <>
@@ -1021,7 +1021,7 @@ function Cfo() {
           <div className="capability">
             <Icon name="lock" size={15} /> Suggests only. Cannot move money.
           </div>
-          <Badge>Deterministic demo · No live AI</Badge>
+          <Badge>Deterministic preview · No live AI</Badge>
         </section>
         <section className="panel cfo-workbench">
           <div className="panel-heading">
@@ -1043,7 +1043,7 @@ function Cfo() {
                   aria-label="Allocation budget"
                   required
                 />
-                <span>DEMO USD</span>
+                <span>USD</span>
               </div>
             </label>
             <div className="context-box">
@@ -1101,7 +1101,7 @@ function Cfo() {
                 private inference. No provider has received this data.
               </p>
               <button className="button dark" disabled={sent} onClick={send}>
-                {sent ? "Sent to demo review" : "Send to human review"}
+                {sent ? "Sent for review" : "Send to human review"}
                 <Icon name={sent ? "check" : "arrow"} size={17} />
               </button>
             </div>
@@ -1124,11 +1124,11 @@ function Agents() {
     }));
     record(
       `${agent.name} ${agent.active ? "paused" : "resumed"}`,
-      "Demo agent control · no external execution",
+      "Sample agent control · no external execution",
       "Agents",
     );
     notify(
-      `${agent.name} is ${agent.active ? "paused" : "active"} in this demo.`,
+      `${agent.name} is ${agent.active ? "paused" : "active"} in this sample.`,
     );
   }
   function requestOffer() {
@@ -1156,7 +1156,7 @@ function Agents() {
         <span>Allowlisted services</span>
         <span>Explicit budgets</span>
         <span>Human approvals</span>
-        <Badge>Mock services</Badge>
+        <Badge>Approved services</Badge>
       </div>
       <div className="agent-grid">
         {state.agents.map((agent, index) => (
@@ -1180,7 +1180,7 @@ function Agents() {
             <p>{agent.role}</p>
             <div className="agent-budget">
               <span>
-                Demo spend{" "}
+                Sample spend{" "}
                 <strong>
                   {money(agent.spent)} <small>/ {money(agent.budget)}</small>
                 </strong>
@@ -1258,7 +1258,7 @@ function Agents() {
               <span>Permitted service</span>
               <strong>
                 {selected.id === "agent-01"
-                  ? "Mock document classifier"
+                  ? "Document classifier"
                   : "Local suggestions only"}
               </strong>
             </div>
@@ -1274,18 +1274,18 @@ function Agents() {
                 disabled={!selected.active || offer}
                 onClick={requestOffer}
               >
-                {offer ? "Demo offer prepared" : "Preview a service offer"}
+                {offer ? "Offer prepared" : "Preview a service offer"}
                 <Icon name="arrow" size={17} />
               </button>
               {offer && (
                 <div className="offer-preview">
-                  <Badge>Mock offer</Badge>
+                  <Badge>Sample offer</Badge>
                   <h3>Classify 10 synthetic documents</h3>
                   <strong>
-                    $1.00 <small>demo USD</small>
+                    $1.00 <small>USD</small>
                   </strong>
                   <p>
-                    Vendor: mock-document-classifier
+                    Vendor: document-classifier
                     <br />
                     Purchase and fulfillment are not connected in this frontend.
                   </p>
@@ -1300,42 +1300,42 @@ function Agents() {
 }
 const employees = [
   {
-    code: "DEMO-001",
+    code: "EMP-001",
     role: "Design",
     amount: "420000",
     initials: "01",
     color: "peach",
   },
   {
-    code: "DEMO-002",
+    code: "EMP-002",
     role: "Engineering",
     amount: "480000",
     initials: "02",
     color: "lilac",
   },
   {
-    code: "DEMO-003",
+    code: "EMP-003",
     role: "Strategy",
     amount: "320000",
     initials: "03",
     color: "sage",
   },
   {
-    code: "DEMO-004",
+    code: "EMP-004",
     role: "Operations",
     amount: "240000",
     initials: "04",
     color: "yellow",
   },
   {
-    code: "DEMO-005",
+    code: "EMP-005",
     role: "Design",
     amount: "280000",
     initials: "05",
     color: "blue",
   },
   {
-    code: "DEMO-006",
+    code: "EMP-006",
     role: "Community",
     amount: "120000",
     initials: "06",
@@ -1362,12 +1362,12 @@ function Payroll() {
         description="A considered space for your team’s payroll."
       >
         <button className="button dark" onClick={() => setBatch(true)}>
-          Review demo batch <Icon name="arrow" size={17} />
+          Review payroll batch <Icon name="arrow" size={17} />
         </button>
       </Heading>
       <div className="payroll-hero">
         <div>
-          <span className="eyebrow">NOVEMBER 2026 / DEMO BATCH</span>
+          <span className="eyebrow">NOVEMBER 2026 / SAMPLE BATCH</span>
           <h2>
             A good month
             <br />
@@ -1381,7 +1381,7 @@ function Payroll() {
               </strong>
             </div>
             <div>
-              <span>Demo employees</span>
+              <span>Team members</span>
               <strong>06</strong>
             </div>
           </div>
@@ -1397,19 +1397,19 @@ function Payroll() {
       <div className="privacy-notice">
         <Icon name="lock" size={19} />
         <p>
-          <strong>Synthetic records only.</strong> Hiding demo amounts is a
+          <strong>Fictional records only.</strong> Hiding sample amounts is a
           display preference, not encryption. Real payroll requires
           authenticated, audited access.
         </p>
         <button className="text-link" onClick={() => setVisible(!visible)}>
           <Icon name="eye" size={16} />
-          {visible ? "Hide amounts" : "Show demo amounts"}
+          {visible ? "Hide amounts" : "Show sample amounts"}
         </button>
       </div>
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <span className="eyebrow">YOUR DEMO TEAM</span>
+            <span className="eyebrow">YOUR SAMPLE TEAM</span>
             <h2>Every person counts.</h2>
           </div>
           <Badge>Draft · no payouts</Badge>
@@ -1470,7 +1470,7 @@ function Payroll() {
           <div className="payslip-paper">
             <span className="eyebrow">SYNTHETIC PAYSLIP / NOVEMBER 2026</span>
             <h3>{selected.code}</h3>
-            <p>{selected.role} · Demo team</p>
+            <p>{selected.role} · Sample team</p>
             <div className="allocation-preview">
               <div>
                 <span>Gross allocation</span>
@@ -1487,7 +1487,7 @@ function Payroll() {
             </div>
             <p className="fine-print">
               Synthetic no-tax illustration. Not a real payslip or proof of
-              payment. This demo does not implement employee authentication.
+              payment. This sample does not implement employee authentication.
             </p>
           </div>
         </Modal>
@@ -1582,7 +1582,7 @@ function ActivityPage() {
             />
           </label>
           <div className="timeline">
-            <span className="eyebrow">DEMO SESSION</span>
+            <span className="eyebrow">BROWSER SESSION</span>
             {events.map((event) => (
               <article key={event.id} className="timeline-event">
                 <span
@@ -1626,7 +1626,7 @@ function ActivityPage() {
             </span>
           </div>
           <WorkspaceLink className="text-link" page="settings">
-            Demo details <Icon name="arrow" size={16} />
+            Sample details <Icon name="arrow" size={16} />
           </WorkspaceLink>
         </aside>
       </div>
@@ -1641,7 +1641,7 @@ function Settings() {
     event.preventDefault();
     if (!name.trim()) return;
     setState((previous) => ({ ...previous, workspace: name.trim() }));
-    notify("Workspace name updated for this demo session.");
+    notify("Workspace name updated for this sample session.");
   }
   return (
     <>
@@ -1666,7 +1666,7 @@ function Settings() {
             </div>
             <form className="form-stack" onSubmit={save}>
               <label>
-                Demo workspace name
+                Workspace name
                 <input
                   value={name}
                   maxLength={40}
@@ -1676,11 +1676,11 @@ function Settings() {
               </label>
               <div className="setting-readonly">
                 <span>Workspace type</span>
-                <Badge>Local demonstration</Badge>
+                <Badge>Fictional sample</Badge>
               </div>
               <div className="setting-readonly">
                 <span>Your role</span>
-                <strong>Demo owner · not authenticated</strong>
+                <strong>Sample owner · not authenticated</strong>
               </div>
               <button className="button dark" type="submit">
                 Save changes <Icon name="check" size={17} />
@@ -1716,7 +1716,7 @@ function Settings() {
           </section>
           <section className="panel settings-panel">
             <span className="eyebrow">A FRESH START</span>
-            <h2>Reset the demo</h2>
+            <h2>Reset sample data</h2>
             <p>
               Restore the fictional studio, invoices, agents, and proposals.
               This only resets your current browser session.
@@ -1734,8 +1734,8 @@ function Settings() {
             <em>Full transparency.</em>
           </h2>
           <p>
-            You’re exploring a frontend demonstration of Coffer. Everything here
-            is synthetic and stored only in memory.
+            You’re exploring a sample Coffer workspace. Every person, business,
+            and financial record is fictional and stored only in memory.
           </p>
           <ul>
             <li>No wallet is connected.</li>
@@ -1752,7 +1752,7 @@ function Settings() {
       {reset && (
         <Modal title="A fresh beginning?" close={() => setReset(false)}>
           <p className="modal-description">
-            This clears your local demo changes and restores Forma Studio’s
+            This clears your local changes and restores Northstar Studio’s
             sample data.
           </p>
           <div className="modal-actions">
@@ -1763,12 +1763,12 @@ function Settings() {
               className="button dark"
               onClick={() => {
                 setState(initialDemo());
-                setName("Forma Studio");
+                setName("Northstar Studio");
                 setReset(false);
                 notify("A fresh studio. A little more possibility.");
               }}
             >
-              Reset demo
+              Reset sample data
             </button>
           </div>
         </Modal>

@@ -71,6 +71,12 @@ describe('organization tenancy invariants', () => {
     });
     if (!organization) throw new Error('Expected unique organization fixture');
     organizationId = organization.id;
+    expect(Object.keys(organization).sort()).toEqual([
+      'id',
+      'name',
+      'role',
+      'slug',
+    ]);
     expect(organization.role).toBe(MembershipRole.OWNER);
     await expect(
       store.createOrganization({

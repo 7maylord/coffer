@@ -109,7 +109,7 @@ export function Modal({
     >
       <div className="modal-heading">
         <div>
-          <span className="eyebrow">COFFER / DEMO WORKSPACE</span>
+          <span className="eyebrow">COFFER / WORKSPACE</span>
           <h2 id="modal-title">{title}</h2>
         </div>
         <button
@@ -155,7 +155,18 @@ export function Workspace({
   onLogout?: () => void;
   visiblePages?: ReadonlySet<PageId>;
 }) {
-  const [state, setState] = useState(initialDemo);
+  const [state, setState] = useState(() =>
+    mode === "demo"
+      ? initialDemo()
+      : {
+          workspace: organizationName ?? "NEAR workspace",
+          reducedMotion: false,
+          invoices: [],
+          approvals: [],
+          agents: [],
+          activity: [],
+        },
+  );
   const [toast, setToast] = useState("");
   const [command, setCommand] = useState(false);
   const [query, setQuery] = useState("");
@@ -243,7 +254,7 @@ export function Workspace({
             <span>
               {displayWorkspace}
               <small>
-                {mode === "demo" ? "Demo workspace" : "NEAR testnet workspace"}
+                {mode === "demo" ? "Sample workspace" : "Business workspace"}
               </small>
             </span>
             <Icon name="down" size={15} />
@@ -283,7 +294,7 @@ export function Workspace({
                 Make yourself at home.
                 <br />
                 {mode === "demo"
-                  ? "This is your demo to explore."
+                  ? "This sample workspace is yours to explore."
                   : "Signed in with a verified NEAR account."}
               </p>
               {availablePages.some((page) => page.id === "cfo") && (
@@ -326,7 +337,7 @@ export function Workspace({
                 {mode === "demo" ? "Jamie Davis" : accountId}
                 <small>
                   {mode === "demo"
-                    ? "Demo owner"
+                    ? "Workspace owner"
                     : role?.toLowerCase().replaceAll("_", " ")}
                 </small>
               </span>
@@ -354,7 +365,7 @@ export function Workspace({
             </div>
             <div className="topbar-actions">
               <span className="demo-indicator">
-                <span /> {mode === "demo" ? "DEMO MODE" : "TESTNET SESSION"}
+                <span /> {mode === "demo" ? "SAMPLE DATA" : "SANDBOX"}
               </span>
               <button
                 className="search-trigger"
@@ -391,8 +402,9 @@ export function Workspace({
               <span className="live-dot" /> A little more in sync.
             </span>
             <span>
-              {mode === "demo" ? "Local demo" : "Authenticated shell"} ·
-              Synthetic UI data · No funds move
+              {mode === "demo"
+                ? "Fictional records · No funds move"
+                : "Simulated balances · Wallet approval required"}
             </span>
             <Link href={href("settings")}>
               About this workspace <Icon name="northeast" size={12} />
