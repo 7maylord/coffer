@@ -1,8 +1,9 @@
 # Approval-gated `ctUSD` testnet runbook
 
-This is a review document for C-09. It has not been executed. Every command that
-creates an account, signs, deploys, registers storage, mints, or transfers
-requires separate human authorization with concrete account IDs and amounts.
+This review procedure for C-09 was executed once on 2026-11-06 with the concrete
+testnet values recorded in `ARTIFACTS.md`. The commands below remain templates:
+every future account creation, deployment, registration, mint, or transfer
+requires separate human authorization with reviewed account IDs and amounts.
 Never place a seed phrase or private key in this repository or shell history.
 
 ## Required reviewed values

@@ -5,8 +5,14 @@ digests, revisions, expiry, and distinct human approvals. It never stores
 payroll PII, invoice bodies, raw recipients, wallet secrets, or provider data,
 and it never receives or transfers treasury assets.
 
-Current slice: `C-01` through `C-04` are implemented locally for one organization per
-deployment. The contract supports quorum-governed configuration, immutable
+The reproducible contract is deployed at `policy.olymight.testnet` with NEAR
+code hash `EtQLEkEdF82iifMe68RdFBYC4YWPh3oGMskuM2w7AhJj`. Configuration version 1
+uses `olymight.testnet` and `olumight.testnet` with a threshold of 2. These are
+distinct test keys controlled by one hackathon operator, not independent
+production approvers.
+
+`C-01` through `C-06` are implemented for one organization per deployment. The
+contract supports quorum-governed configuration, immutable
 configuration history, proposal commitments, distinct approvals, cancellation,
 expiry, bounded queries, and `coffer:proposal:v1` golden vectors. C-05 has a
 passing multi-account quorum/unauthorized-caller Sandbox path that also rejects
@@ -19,7 +25,8 @@ proposal state.
 
 The byte contract is in `DIGEST_SPEC.md`, the checked-in vector is under
 `test-vectors`, and `EVENTS.md` / `PRIVACY.md` define the public-data boundary.
-`ARTIFACTS.md` records the latest local, non-reproducible review build.
+`ARTIFACTS.md` records the reproducible artifact, deployment transaction,
+downloaded-WASM verification, and earlier local review build.
 `SECURITY_REVIEW.md` records the internal review and its open release blockers.
 The dependency-free TypeScript digest and ABI fixture are under `ts/`; their
 Node test proves parity with the Rust golden vector.
@@ -44,6 +51,11 @@ withdrawal method. Configuration and proposal histories are capped at 1,024 and
 10,000 records respectively, and query pages are capped at 50 records.
 
 Deployment is intentionally excluded from normal build and test commands.
+
+Backend integration must remain non-custodial: the API binds this account and
+code hash to an organization, verifies final contract state, and returns call
+descriptions for an authorized wallet to sign. The backend must not hold an
+approver key or bypass the configured quorum.
 
 Migration evidence limitation: V0 is a synthetic fixture, not a historical or
 deployed contract layout. The conversion test does not certify any real upgrade;
