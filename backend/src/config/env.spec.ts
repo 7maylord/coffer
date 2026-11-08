@@ -79,6 +79,48 @@ describe('environment safety', () => {
     });
   });
 
+  it('rejects ambiguous Intents credentials', () => {
+    expect(() =>
+      parseEnvironment({
+        NEAR_INTENTS_API_KEY: 'partner-jwt',
+        NEAR_INTENTS_JWT: 'second-partner-jwt',
+      }),
+    ).toThrow('Invalid configuration: NEAR_INTENTS_API_KEY');
+  });
+
+  it('pins Tidepool to its public origin and keeps wet quotes explicitly gated', () => {
+    expect(
+      parseEnvironment({
+        NEAR_INTENTS_PROVIDER: 'tidepool',
+        NEAR_INTENTS_API_URL: 'https://www.usetidepool.tech',
+        NEAR_INTENTS_DRY_QUOTES_ENABLED: 'true',
+      }),
+    ).toMatchObject({
+      NEAR_INTENTS_PROVIDER: 'tidepool',
+      NEAR_INTENTS_DRY_QUOTES_ENABLED: true,
+      NEAR_INTENTS_WET_QUOTES_ENABLED: false,
+    });
+    expect(() =>
+      parseEnvironment({
+        NEAR_INTENTS_PROVIDER: 'tidepool',
+        NEAR_INTENTS_API_URL: 'https://example.test',
+      }),
+    ).toThrow('Invalid configuration: NEAR_INTENTS_API_URL');
+    expect(
+      parseEnvironment({
+        NEAR_INTENTS_PROVIDER: 'tidepool',
+        NEAR_INTENTS_API_URL: 'https://www.usetidepool.tech',
+        NEAR_INTENTS_DRY_QUOTES_ENABLED: 'true',
+        NEAR_INTENTS_WET_QUOTES_ENABLED: 'true',
+        LIVE_TRANSFERS_ENABLED: 'true',
+      }),
+    ).toMatchObject({
+      NEAR_INTENTS_PROVIDER: 'tidepool',
+      NEAR_INTENTS_WET_QUOTES_ENABLED: true,
+      LIVE_TRANSFERS_ENABLED: true,
+    });
+  });
+
   it('keeps mock automation explicit and requires credentials for NEAR AI', () => {
     expect(parseEnvironment({ FEATURE_AGENT_EXECUTION: 'true' })).toMatchObject(
       {

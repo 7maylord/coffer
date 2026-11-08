@@ -209,6 +209,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/orgs/{orgId}/policy-contract/deployment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Prepare a provisioner-signed testnet policy instance call */
+    get: operations["Policy.deployment"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/policy-contract/deployment-preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prepare an unsigned, sponsor-funded factory call */
+    post: operations["Policy.deploymentPreview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/policy-contract/binding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Bind an active, final and verified factory policy instance */
+    post: operations["Policy.bindContract"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/orgs/{orgId}/policies": {
     parameters: {
       query?: never;
@@ -345,6 +396,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/settlement/intents/assets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover current NEAR Intents provider assets */
+    get: operations["Settlement.intentsAssets"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/orgs/{orgId}/payments/quotes": {
     parameters: {
       query?: never;
@@ -407,6 +475,91 @@ export interface paths {
     put?: never;
     /** Advance the deterministic mock scenario */
     post: operations["Settlement.poll"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/settlement/intents/dry-quote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Preview a Tidepool NEAR testnet swap */
+    post: operations["IntentsSwap.dryQuote"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/settlement/intents/swaps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prepare an idempotent Tidepool testnet swap */
+    post: operations["IntentsSwap.prepare"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read a tenant-scoped Tidepool testnet swap */
+    get: operations["IntentsSwap.get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/deposit-evidence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify and submit the wallet deposit evidence */
+    post: operations["IntentsSwap.submitDeposit"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/poll": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Poll and persist Tidepool testnet swap status */
+    post: operations["IntentsSwap.poll"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1558,6 +1711,143 @@ export interface operations {
       };
     };
   };
+  "Policy.deployment": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            deploymentStatus: "READY" | "PENDING" | "ACTIVE" | "BOUND";
+            binding: {
+              /** @enum {string} */
+              network: "testnet";
+              contractAccountId: string;
+              expectedCodeHash: string;
+              organizationCommitment: string;
+              /** @enum {boolean} */
+              required: true;
+            } | null;
+            factoryAccountId: string;
+            provisionerAccountId: string;
+            /** @enum {string} */
+            methodName: "create_policy_instance";
+            organizationCommitment: string;
+            policyDigest: string;
+            approvalThreshold: number;
+            eligibleApprovers: {
+              userId: string;
+              /** @enum {string} */
+              role: "OWNER" | "APPROVER";
+              accountId: string;
+            }[];
+            minimumDepositYocto: string;
+            expectedInstanceAccountId: string;
+          };
+        };
+      };
+    };
+  };
+  "Policy.deploymentPreview": {
+    parameters: {
+      query?: never;
+      header: {
+        "X-CSRF-Token": string;
+      };
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          controller: string;
+          approvers: string[];
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            network: "testnet";
+            signerId: string;
+            receiverId: string;
+            /** @enum {string} */
+            methodName: "create_policy_instance";
+            args: {
+              organization_commitment: string;
+              controller: string;
+              policy_digest: string;
+              approvers: string[];
+              approval_threshold: number;
+            };
+            gas: string;
+            depositYocto: string;
+            expectedInstanceAccountId: string;
+          };
+        };
+      };
+    };
+  };
+  "Policy.bindContract": {
+    parameters: {
+      query?: never;
+      header: {
+        "X-CSRF-Token": string;
+      };
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            network: "testnet";
+            contractAccountId: string;
+            expectedCodeHash: string;
+            organizationCommitment: string;
+            /** @enum {boolean} */
+            required: true;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: date-time */
+            verifiedAt: string | null;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          };
+        };
+      };
+    };
+  };
   "Policy.activate": {
     parameters: {
       query?: never;
@@ -1766,6 +2056,46 @@ export interface operations {
             }[];
           };
         };
+      };
+    };
+  };
+  "Settlement.intentsAssets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Validated provider asset identities */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            provider: "one-click" | "tidepool";
+            /** @enum {string} */
+            environment: "mainnet" | "testnet";
+            testOnly: boolean;
+            assets: {
+              assetId: string;
+              blockchain: string;
+              symbol: string;
+              decimals: number;
+              contractAddress?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Provider discovery unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
@@ -2136,6 +2466,545 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  "IntentsSwap.dryQuote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          originAssetId: string;
+          destinationAssetId: string;
+          amountAtomic: string;
+          slippageBps: number;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            provider: "near-intents";
+            dry: boolean;
+            correlationId: string;
+            /** Format: date-time */
+            timestamp: string;
+            originAsset: string;
+            destinationAsset: string;
+            amountInAtomic: string;
+            minAmountInAtomic: string;
+            amountOutAtomic: string;
+            minAmountOutAtomic: string;
+            timeEstimateSeconds: number;
+            /** @enum {string} */
+            depositType: "ORIGIN_CHAIN" | "INTENTS";
+            /** @enum {string} */
+            refundType: "ORIGIN_CHAIN" | "INTENTS";
+            signatureVerified: boolean;
+            /** @enum {boolean} */
+            testOnly: true;
+          };
+        };
+      };
+    };
+  };
+  "IntentsSwap.prepare": {
+    parameters: {
+      query?: never;
+      header: {
+        "Idempotency-Key": string;
+      };
+      path: {
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          originAssetId: string;
+          destinationAssetId: string;
+          amountAtomic: string;
+          slippageBps: number;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            /** @enum {string} */
+            provider: "tidepool";
+            /** @enum {string} */
+            environment: "testnet";
+            idempotencyKey: string;
+            requestDigest: string;
+            correlationId: string;
+            originAssetId: string;
+            destinationAssetId: string;
+            originTokenContract: string;
+            /** @enum {string} */
+            depositType: "ORIGIN_CHAIN" | "INTENTS";
+            amountInAtomic: string;
+            amountOutAtomic: string;
+            minAmountOutAtomic: string;
+            recipient: string;
+            refundTo: string;
+            slippageBps: number;
+            depositAddress: string;
+            /** Format: date-time */
+            deadline: string;
+            signatureVerified: boolean;
+            depositTransactionHash?: string;
+            /** @enum {string} */
+            providerStatus:
+              | "PENDING_DEPOSIT"
+              | "KNOWN_DEPOSIT_TX"
+              | "PROCESSING"
+              | "SUCCESS"
+              | "INCOMPLETE_DEPOSIT"
+              | "REFUNDED"
+              | "FAILED";
+            /** @enum {string} */
+            internalStatus:
+              | "AWAITING_DEPOSIT"
+              | "DEPOSIT_OBSERVED"
+              | "PROCESSING"
+              | "UNVERIFIED_SUCCESS"
+              | "UNDERFUNDED"
+              | "REFUNDED"
+              | "FAILED";
+            /** Format: date-time */
+            providerUpdatedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            transaction: {
+              /** @enum {string} */
+              network: "testnet";
+              signerAccountId: string;
+              receiverId: string;
+              actions: (
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                    };
+                    /** @enum {string} */
+                    gas: "30000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer_call";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                      msg: string;
+                    };
+                    /** @enum {string} */
+                    gas: "100000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+              )[];
+            };
+            /** @enum {boolean} */
+            testOnly: true;
+            /** @enum {boolean} */
+            settlementCredited: false;
+          };
+        };
+      };
+    };
+  };
+  "IntentsSwap.get": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        swapId: string;
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            /** @enum {string} */
+            provider: "tidepool";
+            /** @enum {string} */
+            environment: "testnet";
+            idempotencyKey: string;
+            requestDigest: string;
+            correlationId: string;
+            originAssetId: string;
+            destinationAssetId: string;
+            originTokenContract: string;
+            /** @enum {string} */
+            depositType: "ORIGIN_CHAIN" | "INTENTS";
+            amountInAtomic: string;
+            amountOutAtomic: string;
+            minAmountOutAtomic: string;
+            recipient: string;
+            refundTo: string;
+            slippageBps: number;
+            depositAddress: string;
+            /** Format: date-time */
+            deadline: string;
+            signatureVerified: boolean;
+            depositTransactionHash?: string;
+            /** @enum {string} */
+            providerStatus:
+              | "PENDING_DEPOSIT"
+              | "KNOWN_DEPOSIT_TX"
+              | "PROCESSING"
+              | "SUCCESS"
+              | "INCOMPLETE_DEPOSIT"
+              | "REFUNDED"
+              | "FAILED";
+            /** @enum {string} */
+            internalStatus:
+              | "AWAITING_DEPOSIT"
+              | "DEPOSIT_OBSERVED"
+              | "PROCESSING"
+              | "UNVERIFIED_SUCCESS"
+              | "UNDERFUNDED"
+              | "REFUNDED"
+              | "FAILED";
+            /** Format: date-time */
+            providerUpdatedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            transaction: {
+              /** @enum {string} */
+              network: "testnet";
+              signerAccountId: string;
+              receiverId: string;
+              actions: (
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                    };
+                    /** @enum {string} */
+                    gas: "30000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer_call";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                      msg: string;
+                    };
+                    /** @enum {string} */
+                    gas: "100000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+              )[];
+            };
+            /** @enum {boolean} */
+            testOnly: true;
+            /** @enum {boolean} */
+            settlementCredited: false;
+          };
+        };
+      };
+    };
+  };
+  "IntentsSwap.submitDeposit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        swapId: string;
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          transactionHash: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            /** @enum {string} */
+            provider: "tidepool";
+            /** @enum {string} */
+            environment: "testnet";
+            idempotencyKey: string;
+            requestDigest: string;
+            correlationId: string;
+            originAssetId: string;
+            destinationAssetId: string;
+            originTokenContract: string;
+            /** @enum {string} */
+            depositType: "ORIGIN_CHAIN" | "INTENTS";
+            amountInAtomic: string;
+            amountOutAtomic: string;
+            minAmountOutAtomic: string;
+            recipient: string;
+            refundTo: string;
+            slippageBps: number;
+            depositAddress: string;
+            /** Format: date-time */
+            deadline: string;
+            signatureVerified: boolean;
+            depositTransactionHash?: string;
+            /** @enum {string} */
+            providerStatus:
+              | "PENDING_DEPOSIT"
+              | "KNOWN_DEPOSIT_TX"
+              | "PROCESSING"
+              | "SUCCESS"
+              | "INCOMPLETE_DEPOSIT"
+              | "REFUNDED"
+              | "FAILED";
+            /** @enum {string} */
+            internalStatus:
+              | "AWAITING_DEPOSIT"
+              | "DEPOSIT_OBSERVED"
+              | "PROCESSING"
+              | "UNVERIFIED_SUCCESS"
+              | "UNDERFUNDED"
+              | "REFUNDED"
+              | "FAILED";
+            /** Format: date-time */
+            providerUpdatedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            transaction: {
+              /** @enum {string} */
+              network: "testnet";
+              signerAccountId: string;
+              receiverId: string;
+              actions: (
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                    };
+                    /** @enum {string} */
+                    gas: "30000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer_call";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                      msg: string;
+                    };
+                    /** @enum {string} */
+                    gas: "100000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+              )[];
+            };
+            /** @enum {boolean} */
+            testOnly: true;
+            /** @enum {boolean} */
+            settlementCredited: false;
+          };
+        };
+      };
+    };
+  };
+  "IntentsSwap.poll": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        swapId: string;
+        orgId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            /** Format: uuid */
+            createdByUserId: string;
+            /** @enum {string} */
+            provider: "tidepool";
+            /** @enum {string} */
+            environment: "testnet";
+            idempotencyKey: string;
+            requestDigest: string;
+            correlationId: string;
+            originAssetId: string;
+            destinationAssetId: string;
+            originTokenContract: string;
+            /** @enum {string} */
+            depositType: "ORIGIN_CHAIN" | "INTENTS";
+            amountInAtomic: string;
+            amountOutAtomic: string;
+            minAmountOutAtomic: string;
+            recipient: string;
+            refundTo: string;
+            slippageBps: number;
+            depositAddress: string;
+            /** Format: date-time */
+            deadline: string;
+            signatureVerified: boolean;
+            depositTransactionHash?: string;
+            /** @enum {string} */
+            providerStatus:
+              | "PENDING_DEPOSIT"
+              | "KNOWN_DEPOSIT_TX"
+              | "PROCESSING"
+              | "SUCCESS"
+              | "INCOMPLETE_DEPOSIT"
+              | "REFUNDED"
+              | "FAILED";
+            /** @enum {string} */
+            internalStatus:
+              | "AWAITING_DEPOSIT"
+              | "DEPOSIT_OBSERVED"
+              | "PROCESSING"
+              | "UNVERIFIED_SUCCESS"
+              | "UNDERFUNDED"
+              | "REFUNDED"
+              | "FAILED";
+            /** Format: date-time */
+            providerUpdatedAt?: string;
+            version: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            transaction: {
+              /** @enum {string} */
+              network: "testnet";
+              signerAccountId: string;
+              receiverId: string;
+              actions: (
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                    };
+                    /** @enum {string} */
+                    gas: "30000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer_call";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                      msg: string;
+                    };
+                    /** @enum {string} */
+                    gas: "100000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+              )[];
+            };
+            /** @enum {boolean} */
+            testOnly: true;
+            /** @enum {boolean} */
+            settlementCredited: false;
+          };
+        };
       };
     };
   };

@@ -56,10 +56,12 @@ export type IntentsQuote = {
   amountOutAtomic: string;
   minAmountOutAtomic: string;
   timeEstimateSeconds: number;
+  depositType: 'ORIGIN_CHAIN' | 'INTENTS';
+  refundType: 'ORIGIN_CHAIN' | 'INTENTS';
   depositAddress?: string;
   depositMemo?: string;
   deadline?: string;
-  signatureVerified: true;
+  signatureVerified: boolean;
 };
 
 export const oneClickStatuses = [
@@ -92,7 +94,7 @@ export type IntentsStatus = {
   refundedAmountAtomic?: string;
   originChainTransactionHashes: string[];
   destinationChainTransactionHashes: string[];
-  signatureVerified: true;
+  signatureVerified: boolean;
 };
 
 export type NearTransferInstruction = {
@@ -104,6 +106,7 @@ export type NearTransferInstruction = {
   receiverAccountId: string;
   amountAtomic: string;
   memo?: string;
+  transferCallMessage?: string;
 };
 
 export type NearWalletTransaction = {
@@ -114,13 +117,19 @@ export type NearWalletTransaction = {
     | { type: 'Transfer'; amountAtomic: string }
     | {
         type: 'FunctionCall';
-        methodName: 'ft_transfer';
-        args: {
-          receiver_id: string;
-          amount: string;
-          memo?: string;
-        };
-        gas: '30000000000000';
+        methodName: 'ft_transfer' | 'ft_transfer_call';
+        args:
+          | {
+              receiver_id: string;
+              amount: string;
+              memo?: string;
+            }
+          | {
+              receiver_id: string;
+              amount: string;
+              msg: string;
+            };
+        gas: '30000000000000' | '100000000000000';
         deposit: '1';
       }
   >;

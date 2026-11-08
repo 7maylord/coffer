@@ -22,6 +22,31 @@ export const settlementAssetsSchema: SchemaObject = {
   },
 };
 
+const intentsAssetSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['assetId', 'blockchain', 'symbol', 'decimals'],
+  properties: {
+    assetId: { type: 'string' },
+    blockchain: { type: 'string' },
+    symbol: { type: 'string' },
+    decimals: { type: 'integer', minimum: 0, maximum: 77 },
+    contractAddress: { type: 'string' },
+  },
+};
+
+export const intentsAssetsSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['provider', 'environment', 'testOnly', 'assets'],
+  properties: {
+    provider: { type: 'string', enum: ['one-click', 'tidepool'] },
+    environment: { type: 'string', enum: ['mainnet', 'testnet'] },
+    testOnly: { type: 'boolean' },
+    assets: { type: 'array', maxItems: 10_000, items: intentsAssetSchema },
+  },
+};
+
 const quoteProperties: SchemaObject['properties'] = {
   id: { type: 'string', format: 'uuid' },
   sourceAssetId: { type: 'string' },

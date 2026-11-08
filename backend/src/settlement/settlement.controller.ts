@@ -6,6 +6,7 @@ import {
   Headers,
   HttpException,
   NotFoundException,
+  ServiceUnavailableException,
   Param,
   Post,
   Body,
@@ -39,10 +40,14 @@ import {
   type SettlementOperations,
 } from './settlement.store.js';
 import {
+  intentsAssetsSchema,
   settlementAssetsSchema,
   settlementAttemptSchema,
   settlementQuoteSchema,
 } from './settlement.openapi.js';
+import { NearIntents1ClickAdapter } from './near-intents-1click.adapter.js';
+import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
+import { ProviderAdapterError } from './provider-adapter.types.js';
 
 const quoteRequestSchema = z
   .object({
@@ -100,6 +105,9 @@ export class SettlementController {
   constructor(
     @Inject(SETTLEMENT_OPERATIONS)
     private readonly settlement: SettlementOperations,
+    @Inject(NearIntents1ClickAdapter)
+    private readonly nearIntents: NearIntents1ClickAdapter,
+    @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
   ) {}
 
   @Get('settlement/assets')
@@ -113,6 +121,26 @@ export class SettlementController {
   })
   supportedAssets() {
     return { mode: 'mock', assets: this.settlement.supportedAssets() };
+  }
+
+  @Get('settlement/intents/assets')
+  @ApiOperation({ summary: 'Discover current NEAR Intents provider assets' })
+  @ApiResponse({
+    status: 200,
+    description: 'Validated provider asset identities',
+    schema: intentsAssetsSchema,
+  })
+  @ApiResponse({ status: 503, description: 'Provider discovery unavailable' })
+  async intentsAssets() {
+    return this.execute(async () => {
+      const testOnly = this.environment.NEAR_INTENTS_PROVIDER === 'tidepool';
+      return {
+        provider: this.environment.NEAR_INTENTS_PROVIDER,
+        environment: testOnly ? ('testnet' as const) : ('mainnet' as const),
+        testOnly,
+        assets: await this.nearIntents.discoverAssets(),
+      };
+    });
   }
 
   @Post('orgs/:orgId/payments/quotes')
@@ -224,6 +252,12 @@ export class SettlementController {
         });
       }
       if (error instanceof SettlementError) throw this.toHttpError(error);
+      if (error instanceof ProviderAdapterError) {
+        throw new ServiceUnavailableException({
+          code: error.code,
+          message: error.message,
+        });
+      }
       throw error;
     }
   }

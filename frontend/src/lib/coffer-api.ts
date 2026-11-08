@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { operations } from "@/lib/api-schema";
+import { intentsTransactionMatchesSwap } from "@/lib/intents-wallet";
 
 export type AuthChallenge =
   operations["Auth.createNearChallenge"]["responses"][201]["content"]["application/json"];
@@ -216,6 +217,149 @@ const settlementAssetsSchema = z
     ),
   })
   .strict();
+const intentsAssetsSchema = z
+  .object({
+    provider: z.enum(["one-click", "tidepool"]),
+    environment: z.enum(["mainnet", "testnet"]),
+    testOnly: z.boolean(),
+    assets: z
+      .array(
+        z
+          .object({
+            assetId: z.string().min(1),
+            blockchain: z.string().min(1),
+            symbol: z.string().min(1),
+            decimals: z.number().int().min(0).max(77),
+            contractAddress: z.string().optional(),
+          })
+          .strict(),
+      )
+      .max(10_000),
+  })
+  .strict();
+const intentsSwapInputSchema = z
+  .object({
+    originAssetId: z.string().min(1).max(500),
+    destinationAssetId: z.string().min(1).max(500),
+    amountAtomic: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    slippageBps: z.number().int().min(0).max(1000),
+  })
+  .strict();
+const intentsQuoteSchema = z
+  .object({
+    provider: z.literal("near-intents"),
+    dry: z.literal(true),
+    correlationId: z.string().min(1),
+    timestamp: z.iso.datetime(),
+    originAsset: z.string().min(1),
+    destinationAsset: z.string().min(1),
+    amountInAtomic: z.string().regex(/^[1-9][0-9]*$/),
+    minAmountInAtomic: z.string().regex(/^\d+$/),
+    amountOutAtomic: z.string().regex(/^[1-9][0-9]*$/),
+    minAmountOutAtomic: z.string().regex(/^\d+$/),
+    timeEstimateSeconds: z.number().nonnegative(),
+    depositType: z.enum(["ORIGIN_CHAIN", "INTENTS"]),
+    refundType: z.enum(["ORIGIN_CHAIN", "INTENTS"]),
+    signatureVerified: z.boolean(),
+    testOnly: z.literal(true),
+  })
+  .strict();
+const intentsDepositTransactionSchema = z
+  .object({
+    network: z.literal("testnet"),
+    signerAccountId: z.string().min(2),
+    receiverId: z.string().min(2),
+    actions: z
+      .array(
+        z.discriminatedUnion("methodName", [
+          z
+            .object({
+              type: z.literal("FunctionCall"),
+              methodName: z.literal("ft_transfer"),
+              args: z
+                .object({
+                  receiver_id: z.string().min(2),
+                  amount: z.string().regex(/^[1-9][0-9]*$/),
+                })
+                .strict(),
+              gas: z.literal("30000000000000"),
+              deposit: z.literal("1"),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal("FunctionCall"),
+              methodName: z.literal("ft_transfer_call"),
+              args: z
+                .object({
+                  receiver_id: z.literal("verifier.tidepool-sandbox.testnet"),
+                  amount: z.string().regex(/^[1-9][0-9]*$/),
+                  msg: z.string().min(2),
+                })
+                .strict(),
+              gas: z.literal("100000000000000"),
+              deposit: z.literal("1"),
+            })
+            .strict(),
+        ]),
+      )
+      .length(1),
+  })
+  .strict();
+const intentsSwapSchema = z
+  .object({
+    id: z.uuid(),
+    organizationId: z.uuid(),
+    createdByUserId: z.uuid(),
+    provider: z.literal("tidepool"),
+    environment: z.literal("testnet"),
+    idempotencyKey: z.string().min(1),
+    requestDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    correlationId: z.string().min(1),
+    originAssetId: z.string().min(1),
+    destinationAssetId: z.string().min(1),
+    originTokenContract: z.string().min(2),
+    depositType: z.enum(["ORIGIN_CHAIN", "INTENTS"]),
+    amountInAtomic: z.string().regex(/^[1-9][0-9]*$/),
+    amountOutAtomic: z.string().regex(/^[1-9][0-9]*$/),
+    minAmountOutAtomic: z.string().regex(/^\d+$/),
+    recipient: z.string().min(2),
+    refundTo: z.string().min(2),
+    slippageBps: z.number().int().min(0).max(1000),
+    depositAddress: z.string().min(2),
+    deadline: z.iso.datetime(),
+    signatureVerified: z.boolean(),
+    depositTransactionHash: z.string().optional(),
+    providerStatus: z.enum([
+      "PENDING_DEPOSIT",
+      "KNOWN_DEPOSIT_TX",
+      "PROCESSING",
+      "SUCCESS",
+      "INCOMPLETE_DEPOSIT",
+      "REFUNDED",
+      "FAILED",
+    ]),
+    internalStatus: z.enum([
+      "AWAITING_DEPOSIT",
+      "DEPOSIT_OBSERVED",
+      "PROCESSING",
+      "UNVERIFIED_SUCCESS",
+      "UNDERFUNDED",
+      "REFUNDED",
+      "FAILED",
+    ]),
+    providerUpdatedAt: z.iso.datetime().optional(),
+    version: z.number().int().positive(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    transaction: intentsDepositTransactionSchema,
+    testOnly: z.literal(true),
+    settlementCredited: z.literal(false),
+  })
+  .strict()
+  .refine(intentsTransactionMatchesSwap, {
+    message: "Wallet transaction does not match the displayed swap",
+  });
 const publicQuoteSchema = z
   .object({
     id: z.uuid(),
@@ -380,6 +524,68 @@ const treasuryPolicySchema = z
     version: z.number().int(),
     digest: z.string().regex(/^[a-f0-9]{64}$/),
     rules: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const policyContractBindingSummarySchema = z
+  .object({
+    network: z.literal("testnet"),
+    contractAccountId: z.string().min(2),
+    expectedCodeHash: z.string().min(43).max(44),
+    organizationCommitment: z.string().regex(/^[a-f0-9]{64}$/),
+    required: z.literal(true),
+  })
+  .strict();
+const policyContractDeploymentSchema = z
+  .object({
+    deploymentStatus: z.enum(["READY", "PENDING", "ACTIVE", "BOUND"]),
+    binding: policyContractBindingSummarySchema.nullable(),
+    factoryAccountId: z.string().min(2),
+    provisionerAccountId: z.string().min(2),
+    methodName: z.literal("create_policy_instance"),
+    organizationCommitment: z.string().min(44).max(44),
+    policyDigest: z.string().min(44).max(44),
+    approvalThreshold: z.number().int().min(2).max(16),
+    eligibleApprovers: z.array(
+      z
+        .object({
+          userId: z.string().min(1),
+          role: z.enum(["OWNER", "APPROVER"]),
+          accountId: z.string().min(2),
+        })
+        .strict(),
+    ),
+    minimumDepositYocto: z.string().regex(/^[1-9][0-9]*$/),
+    expectedInstanceAccountId: z.string().min(2),
+  })
+  .strict();
+const sponsoredPolicyDeploymentSchema = z
+  .object({
+    network: z.literal("testnet"),
+    signerId: z.string().min(2),
+    receiverId: z.string().min(2),
+    methodName: z.literal("create_policy_instance"),
+    args: z
+      .object({
+        organization_commitment: z.string().min(44).max(44),
+        controller: z.string().min(2),
+        policy_digest: z.string().min(44).max(44),
+        approvers: z.array(z.string().min(2)).min(2).max(16),
+        approval_threshold: z.number().int().min(2).max(16),
+      })
+      .strict(),
+    gas: z.string().regex(/^[1-9][0-9]*$/),
+    depositYocto: z.string().regex(/^[1-9][0-9]*$/),
+    expectedInstanceAccountId: z.string().min(2),
+  })
+  .strict();
+const policyContractBindingSchema = policyContractBindingSummarySchema
+  .extend({
+    id: z.uuid(),
+    organizationId: z.uuid(),
+    verifiedAt: z.iso.datetime().nullable(),
+    version: z.number().int().positive(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .strict();
 const reserveResultSchema = z
@@ -746,6 +952,19 @@ export type PayrollAnalysis = z.infer<typeof payrollAnalysisSchema>;
 export type OperationsDashboard = z.infer<typeof operationsDashboardSchema>;
 export type OperationsMetrics = z.infer<typeof operationsMetricsSchema>;
 export type AuditPage = z.infer<typeof auditPageSchema>;
+export type PolicyContractDeployment = z.infer<
+  typeof policyContractDeploymentSchema
+>;
+export type SponsoredPolicyDeployment = z.infer<
+  typeof sponsoredPolicyDeploymentSchema
+>;
+export type IntentsAssets = z.infer<typeof intentsAssetsSchema>;
+export type IntentsSwapInput = z.infer<typeof intentsSwapInputSchema>;
+export type IntentsQuotePreview = z.infer<typeof intentsQuoteSchema>;
+export type IntentsDepositTransaction = z.infer<
+  typeof intentsDepositTransactionSchema
+>;
+export type PreparedIntentsSwap = z.infer<typeof intentsSwapSchema>;
 
 export class ApiError extends Error {
   constructor(
@@ -890,6 +1109,56 @@ export const cofferApi = {
       `/v1/public/invoices/${encodeURIComponent(publicToken)}/settlement/assets`,
       settlementAssetsSchema,
     ),
+  intentsAssets: () =>
+    request("/v1/settlement/intents/assets", intentsAssetsSchema),
+  intentsDryQuote: (organizationId: string, input: IntentsSwapInput) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/settlement/intents/dry-quote`,
+      intentsQuoteSchema,
+      { method: "POST", body: JSON.stringify(input) },
+      true,
+    ),
+  prepareIntentsSwap: (
+    organizationId: string,
+    input: IntentsSwapInput,
+    idempotencyKey: string,
+  ) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/settlement/intents/swaps`,
+      intentsSwapSchema,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(input),
+      },
+      true,
+    ),
+  intentsSwap: (organizationId: string, swapId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/settlement/intents/swaps/${encodeURIComponent(swapId)}`,
+      intentsSwapSchema,
+    ),
+  submitIntentsDeposit: (
+    organizationId: string,
+    swapId: string,
+    transactionHash: string,
+  ) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/settlement/intents/swaps/${encodeURIComponent(swapId)}/deposit-evidence`,
+      intentsSwapSchema,
+      {
+        method: "POST",
+        body: JSON.stringify({ transactionHash }),
+      },
+      true,
+    ),
+  pollIntentsSwap: (organizationId: string, swapId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/settlement/intents/swaps/${encodeURIComponent(swapId)}/poll`,
+      intentsSwapSchema,
+      { method: "POST" },
+      true,
+    ),
   createPublicQuote: (publicToken: string, input: PublicQuoteInput) =>
     request(
       `/v1/public/invoices/${encodeURIComponent(publicToken)}/quotes`,
@@ -925,6 +1194,28 @@ export const cofferApi = {
     request(
       `/v1/orgs/${encodeURIComponent(organizationId)}/treasury`,
       treasuryWorkspaceSchema,
+    ),
+  policyContractDeployment: (organizationId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/policy-contract/deployment`,
+      policyContractDeploymentSchema,
+    ),
+  previewPolicyContractDeployment: (
+    organizationId: string,
+    input: { controller: string; approvers: string[] },
+  ) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/policy-contract/deployment-preview`,
+      sponsoredPolicyDeploymentSchema,
+      { method: "POST", body: JSON.stringify(input) },
+      true,
+    ),
+  bindPolicyContract: (organizationId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/policy-contract/binding`,
+      policyContractBindingSchema,
+      { method: "POST" },
+      true,
     ),
   activateTreasuryPolicy: (
     organizationId: string,

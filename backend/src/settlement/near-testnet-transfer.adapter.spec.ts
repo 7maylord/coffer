@@ -133,16 +133,22 @@ function ftResponse(input: NearTransferInstruction) {
     JSON.stringify({
       receiver_id: input.receiverAccountId,
       amount: input.amountAtomic,
-      ...(input.memo ? { memo: input.memo } : {}),
+      ...(input.transferCallMessage
+        ? { msg: input.transferCallMessage }
+        : input.memo
+          ? { memo: input.memo }
+          : {}),
     }),
   ).toString('base64');
   const response = successfulResponse(
     [
       {
         FunctionCall: {
-          method_name: 'ft_transfer',
+          method_name: input.transferCallMessage
+            ? 'ft_transfer_call'
+            : 'ft_transfer',
           args,
-          gas: '30000000000000',
+          gas: input.transferCallMessage ? '100000000000000' : '30000000000000',
           deposit: '1',
         },
       },
@@ -172,6 +178,31 @@ function adapter(response: unknown, store = new MemoryEvidenceStore()) {
     environment,
     new AssetRegistry(),
     store,
+    new FixtureRpc(response),
+  );
+}
+
+function tidepoolAdapter(
+  response: unknown,
+  assetId = `nep141:${tokenContract}`,
+) {
+  const assets = new AssetRegistry();
+  assets.registerProviderAsset({
+    assetId,
+    adapter: 'near-intents',
+    environment: 'testnet',
+    network: 'near-testnet',
+    symbol: 'USDC',
+    decimals: 6,
+    kind: 'token',
+    tokenContract,
+    testOnly: true,
+    discoverySource: 'provider',
+  });
+  return new NearTestnetTransferAdapter(
+    environment,
+    assets,
+    new MemoryEvidenceStore(),
     new FixtureRpc(response),
   );
 }
@@ -264,6 +295,63 @@ describe('NearTestnetTransferAdapter', () => {
         transactionHash,
       }),
     ).resolves.toMatchObject({ assetId: instruction.assetId });
+  });
+
+  it('verifies an exact provider-discovered Tidepool NEP-141 transfer', async () => {
+    const instruction = {
+      ...nativeInstruction,
+      referenceId: 'tidepool-swap-1',
+      assetId: `nep141:${tokenContract}`,
+      amountAtomic: '1000000',
+    };
+    await expect(
+      tidepoolAdapter(ftResponse(instruction)).verifyAndClaim({
+        ...instruction,
+        transactionHash,
+      }),
+    ).resolves.toMatchObject({
+      assetId: instruction.assetId,
+      transactionHash,
+    });
+  });
+
+  it('verifies an exact Tidepool INTENTS ft_transfer_call deposit', async () => {
+    const instruction = {
+      ...nativeInstruction,
+      referenceId: 'tidepool-intents-swap-1',
+      assetId: `nep141:${tokenContract}`,
+      receiverAccountId: 'verifier.tidepool-sandbox.testnet',
+      amountAtomic: '1000000',
+      transferCallMessage: 'deposit.tidepool-sandbox.testnet',
+    };
+    await expect(
+      tidepoolAdapter(ftResponse(instruction)).verifyAndClaim({
+        ...instruction,
+        transactionHash,
+      }),
+    ).resolves.toMatchObject({
+      receiverAccountId: 'verifier.tidepool-sandbox.testnet',
+      transferCallMessage: 'deposit.tidepool-sandbox.testnet',
+    });
+
+    const altered = ftResponse(instruction);
+    const call = altered.transaction.actions[0] as {
+      FunctionCall: { args: string };
+    };
+    call.FunctionCall.args = Buffer.from(
+      JSON.stringify({
+        receiver_id: instruction.receiverAccountId,
+        amount: instruction.amountAtomic,
+        msg: 'attacker.testnet',
+      }),
+    ).toString('base64');
+    await expect(
+      tidepoolAdapter(altered).verifyAndClaim({
+        ...instruction,
+        referenceId: 'tidepool-intents-swap-altered',
+        transactionHash,
+      }),
+    ).rejects.toMatchObject({ code: 'TRANSFER_EVIDENCE_MISMATCH' });
   });
 
   it('rejects a ctUSD call with altered gas or an unapproved event memo', async () => {

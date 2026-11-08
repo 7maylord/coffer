@@ -49,11 +49,11 @@ const quoteRequestEchoSchema = z
     swapType: z.literal('EXACT_INPUT'),
     slippageTolerance: z.number().int(),
     originAsset: z.string(),
-    depositType: z.literal('ORIGIN_CHAIN'),
+    depositType: z.enum(['ORIGIN_CHAIN', 'INTENTS']),
     destinationAsset: z.string(),
     amount: positiveAtomicAmount,
     refundTo: z.string(),
-    refundType: z.literal('ORIGIN_CHAIN'),
+    refundType: z.enum(['ORIGIN_CHAIN', 'INTENTS']),
     recipient: z.string(),
     recipientType: z.literal('DESTINATION_CHAIN'),
     deadline: z.string().datetime({ offset: true }),
@@ -102,6 +102,17 @@ const statusResponseSchema = z
     swapDetails: swapDetailsSchema,
   })
   .passthrough();
+const tidepoolNetworks: Readonly<Record<string, string>> = {
+  near: 'near-testnet',
+  base: 'base-sepolia',
+  arb: 'arbitrum-sepolia',
+  eth: 'ethereum-sepolia',
+  sol: 'solana-devnet',
+  stellar: 'stellar-testnet',
+  sui: 'sui-testnet',
+  btc: 'bitcoin-testnet4',
+  xrp: 'xrp-testnet',
+};
 
 @Injectable()
 export class NearIntents1ClickAdapter {
@@ -128,6 +139,7 @@ export class NearIntents1ClickAdapter {
       await this.requestJson('/v0/tokens'),
     );
     const next = new Set<string>();
+    const tidepool = this.environment.NEAR_INTENTS_PROVIDER === 'tidepool';
     const sanitized = tokens.map((token) => {
       const asset: IntentsAsset = {
         assetId: token.assetId,
@@ -142,15 +154,19 @@ export class NearIntents1ClickAdapter {
         throw invalidResponse('Provider returned a duplicate asset ID');
       }
       try {
+        const network = tidepool
+          ? tidepoolNetworks[asset.blockchain]
+          : `${asset.blockchain}-mainnet`;
+        if (!network) throw new AssetRegistryError('Unknown testnet chain');
         this.assets.registerProviderAsset({
           assetId: asset.assetId,
           adapter: 'near-intents',
-          environment: 'mainnet',
-          network: `${asset.blockchain}-mainnet`,
+          environment: tidepool ? 'testnet' : 'mainnet',
+          network,
           symbol: asset.symbol,
           decimals: asset.decimals,
           kind: 'token',
-          testOnly: false,
+          testOnly: tidepool,
           discoverySource: 'provider',
           ...(asset.contractAddress
             ? { tokenContract: asset.contractAddress }
@@ -201,7 +217,10 @@ export class NearIntents1ClickAdapter {
       );
     }
 
-    const request = providerQuoteRequest(input);
+    const request = providerQuoteRequest(
+      input,
+      this.environment.NEAR_INTENTS_PROVIDER,
+    );
     const response = parseProvider(
       quoteResponseSchema,
       await this.requestJson('/v0/quote', {
@@ -210,7 +229,10 @@ export class NearIntents1ClickAdapter {
       }),
     );
     verifyQuoteEcho(response.quoteRequest, request);
-    this.verifySignature(response);
+    if (response.quote.amountIn !== input.amountAtomic) {
+      throw invalidResponse('Provider changed the exact input amount');
+    }
+    const signatureVerified = this.verifySignature(response);
     if (input.dry && response.quote.depositAddress) {
       throw invalidResponse(
         'Dry quote unexpectedly returned a deposit address',
@@ -234,6 +256,8 @@ export class NearIntents1ClickAdapter {
       amountOutAtomic: response.quote.amountOut,
       minAmountOutAtomic: response.quote.minAmountOut,
       timeEstimateSeconds: response.quote.timeEstimate,
+      depositType: response.quoteRequest.depositType,
+      refundType: response.quoteRequest.refundType,
       ...(response.quote.depositAddress
         ? { depositAddress: response.quote.depositAddress }
         : {}),
@@ -241,7 +265,7 @@ export class NearIntents1ClickAdapter {
         ? { depositMemo: response.quote.depositMemo }
         : {}),
       ...(response.quote.deadline ? { deadline: response.quote.deadline } : {}),
-      signatureVerified: true,
+      signatureVerified,
     };
   }
 
@@ -263,8 +287,10 @@ export class NearIntents1ClickAdapter {
         'Status response belongs to another deposit address',
       );
     }
-    this.verifySignature(response.quoteResponse);
-    return sanitizeStatus(response);
+    return sanitizeStatus(
+      response,
+      this.verifySignature(response.quoteResponse),
+    );
   }
 
   async submitDepositEvidence(input: {
@@ -308,8 +334,10 @@ export class NearIntents1ClickAdapter {
     if (response.quoteResponse.quote.depositAddress !== body.depositAddress) {
       throw invalidResponse('Deposit response belongs to another quote');
     }
-    this.verifySignature(response.quoteResponse);
-    return sanitizeStatus(response);
+    return sanitizeStatus(
+      response,
+      this.verifySignature(response.quoteResponse),
+    );
   }
 
   private assertDiscoveryEnabled(): void {
@@ -321,13 +349,17 @@ export class NearIntents1ClickAdapter {
     }
   }
 
-  private verifySignature(response: z.infer<typeof quoteResponseSchema>): void {
+  private verifySignature(
+    response: z.infer<typeof quoteResponseSchema>,
+  ): boolean {
+    if (this.environment.NEAR_INTENTS_PROVIDER === 'tidepool') return false;
     if (!this.signatureVerifier(response as OneClickQuoteResponse)) {
       throw new ProviderAdapterError(
         'PROVIDER_SIGNATURE_INVALID',
         '1Click response signature verification failed',
       );
     }
+    return true;
   }
 
   private async requestJson(
@@ -344,13 +376,15 @@ export class NearIntents1ClickAdapter {
     const headers = new Headers(init.headers);
     headers.set('accept', 'application/json');
     if (init.body) headers.set('content-type', 'application/json');
-    if (this.environment.NEAR_INTENTS_API_KEY) {
-      headers.set('x-api-key', this.environment.NEAR_INTENTS_API_KEY);
-    } else if (this.environment.NEAR_INTENTS_JWT) {
-      headers.set(
-        'authorization',
-        `Bearer ${this.environment.NEAR_INTENTS_JWT}`,
-      );
+    if (this.environment.NEAR_INTENTS_PROVIDER === 'one-click') {
+      if (this.environment.NEAR_INTENTS_API_KEY) {
+        headers.set('x-api-key', this.environment.NEAR_INTENTS_API_KEY);
+      } else if (this.environment.NEAR_INTENTS_JWT) {
+        headers.set(
+          'authorization',
+          `Bearer ${this.environment.NEAR_INTENTS_JWT}`,
+        );
+      }
     }
     let response: Response;
     try {
@@ -390,17 +424,21 @@ export class NearIntents1ClickAdapter {
 
 type ProviderQuoteRequest = ReturnType<typeof providerQuoteRequest>;
 
-function providerQuoteRequest(input: IntentsQuoteRequest) {
+function providerQuoteRequest(
+  input: IntentsQuoteRequest,
+  provider: AppEnvironment['NEAR_INTENTS_PROVIDER'],
+) {
+  const tidepool = provider === 'tidepool';
   return {
     dry: input.dry,
     swapType: 'EXACT_INPUT' as const,
     slippageTolerance: input.slippageBps,
     originAsset: input.originAsset,
-    depositType: 'ORIGIN_CHAIN' as const,
+    depositType: tidepool ? ('INTENTS' as const) : ('ORIGIN_CHAIN' as const),
     destinationAsset: input.destinationAsset,
     amount: input.amountAtomic,
     refundTo: input.refundTo,
-    refundType: 'ORIGIN_CHAIN' as const,
+    refundType: tidepool ? ('INTENTS' as const) : ('ORIGIN_CHAIN' as const),
     recipient: input.recipient,
     recipientType: 'DESTINATION_CHAIN' as const,
     deadline: input.deadline,
@@ -470,6 +508,7 @@ function verifyQuoteEcho(
 
 function sanitizeStatus(
   response: z.infer<typeof statusResponseSchema>,
+  signatureVerified: boolean,
 ): IntentsStatus {
   return {
     provider: 'near-intents',
@@ -491,7 +530,7 @@ function sanitizeStatus(
     ),
     destinationChainTransactionHashes:
       response.swapDetails.destinationChainTxHashes.map((item) => item.hash),
-    signatureVerified: true,
+    signatureVerified,
   };
 }
 

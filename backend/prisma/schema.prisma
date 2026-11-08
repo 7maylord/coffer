@@ -147,6 +147,7 @@ model User {
   ownedAgents            AgentIdentity[]         @relation("AgentOwner")
   approvedPayrollBatches PayrollBatch[]          @relation("PayrollBatchApprover")
   payrollAnalysisRuns    PayrollAnalysisRun[]    @relation("PayrollAnalysisActor")
+  intentsSwaps           IntentsSwap[]           @relation("IntentsSwapCreator")
 }
 
 model Organization {
@@ -184,6 +185,7 @@ model Organization {
   serviceOffers            ServiceOffer[]
   agentPurchases           AgentPurchase[]
   payrollAnalysisRuns      PayrollAnalysisRun[]
+  intentsSwaps             IntentsSwap[]
 }
 
 model Membership {
@@ -394,6 +396,59 @@ model ExternalTransferEvidence {
   @@unique([provider, network, transactionHash])
   @@unique([organizationId, referenceId])
   @@index([organizationId, verifiedAt])
+}
+
+model IntentsSwap {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  organizationId         String                   @db.Uuid
+  createdByUserId        String                   @db.Uuid
+  provider               String
+  environment            String
+  idempotencyKey         String
+  requestDigest          String
+  correlationId          String
+  originAssetId          String
+  destinationAssetId     String
+  originTokenContract    String
+  depositType            String                   @default("ORIGIN_CHAIN")
+  amountInAtomic         Decimal                  @db.Decimal(78, 0)
+  amountOutAtomic        Decimal                  @db.Decimal(78, 0)
+  minAmountOutAtomic     Decimal                  @db.Decimal(78, 0)
+  recipient              String
+  refundTo               String
+  slippageBps            Int
+  depositAddress         String
+  deadline               DateTime
+  signatureVerified      Boolean                  @default(false)
+  depositTransactionHash String?
+  providerStatus         String                   @default("PENDING_DEPOSIT")
+  internalStatus         String                   @default("AWAITING_DEPOSIT")
+  providerUpdatedAt      DateTime?
+  version                Int                      @default(1)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy              User                     @relation("IntentsSwapCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  observations           IntentsSwapObservation[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([provider, correlationId])
+  @@unique([provider, depositTransactionHash])
+  @@index([organizationId, createdAt])
+}
+
+model IntentsSwapObservation {
+  id                String      @id @default(uuid()) @db.Uuid
+  intentsSwapId     String      @db.Uuid
+  providerEventId   String
+  providerStatus    String
+  signatureVerified Boolean
+  controlledPayload Json
+  observedAt        DateTime    @default(now())
+  intentsSwap       IntentsSwap @relation(fields: [intentsSwapId], references: [id], onDelete: Cascade)
+
+  @@unique([intentsSwapId, providerEventId])
+  @@index([intentsSwapId, observedAt])
 }
 
 model Refund {

@@ -32,6 +32,9 @@ const instanceSchema = z
     status: z.literal('Active'),
   })
   .passthrough();
+const instanceStatusSchema = instanceSchema.extend({
+  status: z.enum(['Pending', 'Active']),
+});
 const amount = z.string().regex(/^[1-9][0-9]*$/);
 
 @Injectable()
@@ -71,12 +74,44 @@ export class PolicyFactoryService {
     ) {
       throw new ConflictException('Not enough distinct verified approvers');
     }
-    const snapshot = await this.factorySnapshot(settings);
     const organizationCommitment = commitment(
       'coffer:organization:v1',
       organizationId,
     );
+    const [snapshot, binding] = await Promise.all([
+      this.factorySnapshot(settings),
+      this.store.contractBinding(organizationId),
+    ]);
+    const instanceResult = await this.client.view(
+      settings.factoryId,
+      'get_instance',
+      { organization_commitment: organizationCommitment.toString('base64') },
+      snapshot.blockHash,
+    );
+    const instance = instanceStatusSchema
+      .nullable()
+      .parse(instanceResult.value);
+    const expectedInstanceAccountId = `${organizationCommitment.subarray(0, 16).toString('hex')}.${settings.factoryId}`;
+    if (
+      instanceResult.blockHash !== snapshot.blockHash ||
+      (instance &&
+        (instance.organization_commitment !==
+          organizationCommitment.toString('base64') ||
+          instance.account_id !== expectedInstanceAccountId ||
+          instance.requested_by !== settings.provisionerId))
+    )
+      throw new ServiceUnavailableException(
+        'Policy factory could not be verified',
+      );
     return {
+      deploymentStatus: binding
+        ? ('BOUND' as const)
+        : instance?.status === 'Active'
+          ? ('ACTIVE' as const)
+          : instance?.status === 'Pending'
+            ? ('PENDING' as const)
+            : ('READY' as const),
+      binding,
       factoryAccountId: settings.factoryId,
       provisionerAccountId: settings.provisionerId,
       methodName: 'create_policy_instance',
@@ -85,7 +120,7 @@ export class PolicyFactoryService {
       approvalThreshold: policy.rules.approvalThreshold,
       eligibleApprovers,
       minimumDepositYocto: snapshot.minimumDepositYocto,
-      expectedInstanceAccountId: `${organizationCommitment.subarray(0, 16).toString('hex')}.${settings.factoryId}`,
+      expectedInstanceAccountId,
     };
   }
 
@@ -95,6 +130,8 @@ export class PolicyFactoryService {
     selection: { controller: string; approvers: string[] },
   ) {
     const prepared = await this.prepare(principal, organizationId);
+    if (prepared.deploymentStatus !== 'READY')
+      throw new ConflictException('Policy instance already pending or active');
     const existing = await this.store.contractBinding(organizationId);
     if (existing)
       throw new ConflictException('Organization already has a policy contract');

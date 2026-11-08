@@ -675,7 +675,134 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "deploymentStatus",
+                    "binding",
+                    "factoryAccountId",
+                    "provisionerAccountId",
+                    "methodName",
+                    "organizationCommitment",
+                    "policyDigest",
+                    "approvalThreshold",
+                    "eligibleApprovers",
+                    "minimumDepositYocto",
+                    "expectedInstanceAccountId"
+                  ],
+                  "properties": {
+                    "deploymentStatus": {
+                      "type": "string",
+                      "enum": [
+                        "READY",
+                        "PENDING",
+                        "ACTIVE",
+                        "BOUND"
+                      ]
+                    },
+                    "binding": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": false,
+                      "required": [
+                        "network",
+                        "contractAccountId",
+                        "expectedCodeHash",
+                        "organizationCommitment",
+                        "required"
+                      ],
+                      "properties": {
+                        "network": {
+                          "type": "string",
+                          "enum": [
+                            "testnet"
+                          ]
+                        },
+                        "contractAccountId": {
+                          "type": "string"
+                        },
+                        "expectedCodeHash": {
+                          "type": "string"
+                        },
+                        "organizationCommitment": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "required": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      }
+                    },
+                    "factoryAccountId": {
+                      "type": "string"
+                    },
+                    "provisionerAccountId": {
+                      "type": "string"
+                    },
+                    "methodName": {
+                      "type": "string",
+                      "enum": [
+                        "create_policy_instance"
+                      ]
+                    },
+                    "organizationCommitment": {
+                      "type": "string"
+                    },
+                    "policyDigest": {
+                      "type": "string"
+                    },
+                    "approvalThreshold": {
+                      "type": "integer",
+                      "minimum": 2,
+                      "maximum": 16
+                    },
+                    "eligibleApprovers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "userId",
+                          "role",
+                          "accountId"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string",
+                            "enum": [
+                              "OWNER",
+                              "APPROVER"
+                            ]
+                          },
+                          "accountId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "minimumDepositYocto": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "expectedInstanceAccountId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -739,7 +866,91 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "network",
+                    "signerId",
+                    "receiverId",
+                    "methodName",
+                    "args",
+                    "gas",
+                    "depositYocto",
+                    "expectedInstanceAccountId"
+                  ],
+                  "properties": {
+                    "network": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "signerId": {
+                      "type": "string"
+                    },
+                    "receiverId": {
+                      "type": "string"
+                    },
+                    "methodName": {
+                      "type": "string",
+                      "enum": [
+                        "create_policy_instance"
+                      ]
+                    },
+                    "args": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "organization_commitment",
+                        "controller",
+                        "policy_digest",
+                        "approvers",
+                        "approval_threshold"
+                      ],
+                      "properties": {
+                        "organization_commitment": {
+                          "type": "string"
+                        },
+                        "controller": {
+                          "type": "string"
+                        },
+                        "policy_digest": {
+                          "type": "string"
+                        },
+                        "approvers": {
+                          "type": "array",
+                          "minItems": 2,
+                          "maxItems": 16,
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "approval_threshold": {
+                          "type": "integer",
+                          "minimum": 2,
+                          "maximum": 16
+                        }
+                      }
+                    },
+                    "gas": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "depositYocto": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "expectedInstanceAccountId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -776,7 +987,79 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "network",
+                    "contractAccountId",
+                    "expectedCodeHash",
+                    "organizationCommitment",
+                    "required",
+                    "id",
+                    "organizationId",
+                    "verifiedAt",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "properties": {
+                    "network": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "contractAccountId": {
+                      "type": "string"
+                    },
+                    "expectedCodeHash": {
+                      "type": "string"
+                    },
+                    "organizationCommitment": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "verifiedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1261,6 +1544,95 @@
           }
         ],
         "summary": "List fictional assets supported by the mock adapter",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/settlement/intents/assets": {
+      "get": {
+        "operationId": "Settlement.intentsAssets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Validated provider asset identities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "provider",
+                    "environment",
+                    "testOnly",
+                    "assets"
+                  ],
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "one-click",
+                        "tidepool"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "mainnet",
+                        "testnet"
+                      ]
+                    },
+                    "testOnly": {
+                      "type": "boolean"
+                    },
+                    "assets": {
+                      "type": "array",
+                      "maxItems": 10000,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "assetId",
+                          "blockchain",
+                          "symbol",
+                          "decimals"
+                        ],
+                        "properties": {
+                          "assetId": {
+                            "type": "string"
+                          },
+                          "blockchain": {
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "type": "string"
+                          },
+                          "decimals": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 77
+                          },
+                          "contractAddress": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider discovery unavailable"
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Discover current NEAR Intents provider assets",
         "tags": [
           "settlement"
         ]
@@ -1978,6 +2350,1663 @@
           }
         ],
         "summary": "Advance the deterministic mock scenario",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settlement/intents/dry-quote": {
+      "post": {
+        "operationId": "IntentsSwap.dryQuote",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "originAssetId",
+                  "destinationAssetId",
+                  "amountAtomic",
+                  "slippageBps"
+                ],
+                "properties": {
+                  "originAssetId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "destinationAssetId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "amountAtomic": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*$",
+                    "maxLength": 78
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "provider",
+                    "dry",
+                    "correlationId",
+                    "timestamp",
+                    "originAsset",
+                    "destinationAsset",
+                    "amountInAtomic",
+                    "minAmountInAtomic",
+                    "amountOutAtomic",
+                    "minAmountOutAtomic",
+                    "timeEstimateSeconds",
+                    "depositType",
+                    "refundType",
+                    "signatureVerified",
+                    "testOnly"
+                  ],
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "near-intents"
+                      ]
+                    },
+                    "dry": {
+                      "type": "boolean"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "originAsset": {
+                      "type": "string"
+                    },
+                    "destinationAsset": {
+                      "type": "string"
+                    },
+                    "amountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "amountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "timeEstimateSeconds": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "depositType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "refundType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "signatureVerified": {
+                      "type": "boolean"
+                    },
+                    "testOnly": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Preview a Tidepool NEAR testnet swap",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settlement/intents/swaps": {
+      "post": {
+        "operationId": "IntentsSwap.prepare",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "originAssetId",
+                  "destinationAssetId",
+                  "amountAtomic",
+                  "slippageBps"
+                ],
+                "properties": {
+                  "originAssetId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "destinationAssetId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "amountAtomic": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*$",
+                    "maxLength": 78
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "createdByUserId",
+                    "provider",
+                    "environment",
+                    "idempotencyKey",
+                    "requestDigest",
+                    "correlationId",
+                    "originAssetId",
+                    "destinationAssetId",
+                    "originTokenContract",
+                    "depositType",
+                    "amountInAtomic",
+                    "amountOutAtomic",
+                    "minAmountOutAtomic",
+                    "recipient",
+                    "refundTo",
+                    "slippageBps",
+                    "depositAddress",
+                    "deadline",
+                    "signatureVerified",
+                    "providerStatus",
+                    "internalStatus",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                    "transaction",
+                    "testOnly",
+                    "settlementCredited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "createdByUserId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "tidepool"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "idempotencyKey": {
+                      "type": "string"
+                    },
+                    "requestDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    },
+                    "originAssetId": {
+                      "type": "string"
+                    },
+                    "destinationAssetId": {
+                      "type": "string"
+                    },
+                    "originTokenContract": {
+                      "type": "string"
+                    },
+                    "depositType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "amountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "amountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "refundTo": {
+                      "type": "string"
+                    },
+                    "slippageBps": {
+                      "type": "integer"
+                    },
+                    "depositAddress": {
+                      "type": "string"
+                    },
+                    "deadline": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "signatureVerified": {
+                      "type": "boolean"
+                    },
+                    "depositTransactionHash": {
+                      "type": "string"
+                    },
+                    "providerStatus": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING_DEPOSIT",
+                        "KNOWN_DEPOSIT_TX",
+                        "PROCESSING",
+                        "SUCCESS",
+                        "INCOMPLETE_DEPOSIT",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "internalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "AWAITING_DEPOSIT",
+                        "DEPOSIT_OBSERVED",
+                        "PROCESSING",
+                        "UNVERIFIED_SUCCESS",
+                        "UNDERFUNDED",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "providerUpdatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "network",
+                        "signerAccountId",
+                        "receiverId",
+                        "actions"
+                      ],
+                      "properties": {
+                        "network": {
+                          "type": "string",
+                          "enum": [
+                            "testnet"
+                          ]
+                        },
+                        "signerAccountId": {
+                          "type": "string"
+                        },
+                        "receiverId": {
+                          "type": "string"
+                        },
+                        "actions": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 1,
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "30000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer_call"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount",
+                                      "msg"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      },
+                                      "msg": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "100000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "testOnly": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "settlementCredited": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Prepare an idempotent Tidepool testnet swap",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}": {
+      "get": {
+        "operationId": "IntentsSwap.get",
+        "parameters": [
+          {
+            "name": "swapId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "createdByUserId",
+                    "provider",
+                    "environment",
+                    "idempotencyKey",
+                    "requestDigest",
+                    "correlationId",
+                    "originAssetId",
+                    "destinationAssetId",
+                    "originTokenContract",
+                    "depositType",
+                    "amountInAtomic",
+                    "amountOutAtomic",
+                    "minAmountOutAtomic",
+                    "recipient",
+                    "refundTo",
+                    "slippageBps",
+                    "depositAddress",
+                    "deadline",
+                    "signatureVerified",
+                    "providerStatus",
+                    "internalStatus",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                    "transaction",
+                    "testOnly",
+                    "settlementCredited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "createdByUserId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "tidepool"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "idempotencyKey": {
+                      "type": "string"
+                    },
+                    "requestDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    },
+                    "originAssetId": {
+                      "type": "string"
+                    },
+                    "destinationAssetId": {
+                      "type": "string"
+                    },
+                    "originTokenContract": {
+                      "type": "string"
+                    },
+                    "depositType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "amountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "amountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "refundTo": {
+                      "type": "string"
+                    },
+                    "slippageBps": {
+                      "type": "integer"
+                    },
+                    "depositAddress": {
+                      "type": "string"
+                    },
+                    "deadline": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "signatureVerified": {
+                      "type": "boolean"
+                    },
+                    "depositTransactionHash": {
+                      "type": "string"
+                    },
+                    "providerStatus": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING_DEPOSIT",
+                        "KNOWN_DEPOSIT_TX",
+                        "PROCESSING",
+                        "SUCCESS",
+                        "INCOMPLETE_DEPOSIT",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "internalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "AWAITING_DEPOSIT",
+                        "DEPOSIT_OBSERVED",
+                        "PROCESSING",
+                        "UNVERIFIED_SUCCESS",
+                        "UNDERFUNDED",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "providerUpdatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "network",
+                        "signerAccountId",
+                        "receiverId",
+                        "actions"
+                      ],
+                      "properties": {
+                        "network": {
+                          "type": "string",
+                          "enum": [
+                            "testnet"
+                          ]
+                        },
+                        "signerAccountId": {
+                          "type": "string"
+                        },
+                        "receiverId": {
+                          "type": "string"
+                        },
+                        "actions": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 1,
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "30000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer_call"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount",
+                                      "msg"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      },
+                                      "msg": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "100000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "testOnly": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "settlementCredited": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Read a tenant-scoped Tidepool testnet swap",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/deposit-evidence": {
+      "post": {
+        "operationId": "IntentsSwap.submitDeposit",
+        "parameters": [
+          {
+            "name": "swapId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transactionHash"
+                ],
+                "properties": {
+                  "transactionHash": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "createdByUserId",
+                    "provider",
+                    "environment",
+                    "idempotencyKey",
+                    "requestDigest",
+                    "correlationId",
+                    "originAssetId",
+                    "destinationAssetId",
+                    "originTokenContract",
+                    "depositType",
+                    "amountInAtomic",
+                    "amountOutAtomic",
+                    "minAmountOutAtomic",
+                    "recipient",
+                    "refundTo",
+                    "slippageBps",
+                    "depositAddress",
+                    "deadline",
+                    "signatureVerified",
+                    "providerStatus",
+                    "internalStatus",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                    "transaction",
+                    "testOnly",
+                    "settlementCredited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "createdByUserId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "tidepool"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "idempotencyKey": {
+                      "type": "string"
+                    },
+                    "requestDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    },
+                    "originAssetId": {
+                      "type": "string"
+                    },
+                    "destinationAssetId": {
+                      "type": "string"
+                    },
+                    "originTokenContract": {
+                      "type": "string"
+                    },
+                    "depositType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "amountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "amountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "refundTo": {
+                      "type": "string"
+                    },
+                    "slippageBps": {
+                      "type": "integer"
+                    },
+                    "depositAddress": {
+                      "type": "string"
+                    },
+                    "deadline": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "signatureVerified": {
+                      "type": "boolean"
+                    },
+                    "depositTransactionHash": {
+                      "type": "string"
+                    },
+                    "providerStatus": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING_DEPOSIT",
+                        "KNOWN_DEPOSIT_TX",
+                        "PROCESSING",
+                        "SUCCESS",
+                        "INCOMPLETE_DEPOSIT",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "internalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "AWAITING_DEPOSIT",
+                        "DEPOSIT_OBSERVED",
+                        "PROCESSING",
+                        "UNVERIFIED_SUCCESS",
+                        "UNDERFUNDED",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "providerUpdatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "network",
+                        "signerAccountId",
+                        "receiverId",
+                        "actions"
+                      ],
+                      "properties": {
+                        "network": {
+                          "type": "string",
+                          "enum": [
+                            "testnet"
+                          ]
+                        },
+                        "signerAccountId": {
+                          "type": "string"
+                        },
+                        "receiverId": {
+                          "type": "string"
+                        },
+                        "actions": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 1,
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "30000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer_call"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount",
+                                      "msg"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      },
+                                      "msg": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "100000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "testOnly": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "settlementCredited": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Verify and submit the wallet deposit evidence",
+        "tags": [
+          "settlement"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/poll": {
+      "post": {
+        "operationId": "IntentsSwap.poll",
+        "parameters": [
+          {
+            "name": "swapId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "organizationId",
+                    "createdByUserId",
+                    "provider",
+                    "environment",
+                    "idempotencyKey",
+                    "requestDigest",
+                    "correlationId",
+                    "originAssetId",
+                    "destinationAssetId",
+                    "originTokenContract",
+                    "depositType",
+                    "amountInAtomic",
+                    "amountOutAtomic",
+                    "minAmountOutAtomic",
+                    "recipient",
+                    "refundTo",
+                    "slippageBps",
+                    "depositAddress",
+                    "deadline",
+                    "signatureVerified",
+                    "providerStatus",
+                    "internalStatus",
+                    "version",
+                    "createdAt",
+                    "updatedAt",
+                    "transaction",
+                    "testOnly",
+                    "settlementCredited"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "createdByUserId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "enum": [
+                        "tidepool"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "testnet"
+                      ]
+                    },
+                    "idempotencyKey": {
+                      "type": "string"
+                    },
+                    "requestDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    },
+                    "originAssetId": {
+                      "type": "string"
+                    },
+                    "destinationAssetId": {
+                      "type": "string"
+                    },
+                    "originTokenContract": {
+                      "type": "string"
+                    },
+                    "depositType": {
+                      "type": "string",
+                      "enum": [
+                        "ORIGIN_CHAIN",
+                        "INTENTS"
+                      ]
+                    },
+                    "amountInAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "amountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[1-9][0-9]*$"
+                    },
+                    "minAmountOutAtomic": {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "refundTo": {
+                      "type": "string"
+                    },
+                    "slippageBps": {
+                      "type": "integer"
+                    },
+                    "depositAddress": {
+                      "type": "string"
+                    },
+                    "deadline": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "signatureVerified": {
+                      "type": "boolean"
+                    },
+                    "depositTransactionHash": {
+                      "type": "string"
+                    },
+                    "providerStatus": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING_DEPOSIT",
+                        "KNOWN_DEPOSIT_TX",
+                        "PROCESSING",
+                        "SUCCESS",
+                        "INCOMPLETE_DEPOSIT",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "internalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "AWAITING_DEPOSIT",
+                        "DEPOSIT_OBSERVED",
+                        "PROCESSING",
+                        "UNVERIFIED_SUCCESS",
+                        "UNDERFUNDED",
+                        "REFUNDED",
+                        "FAILED"
+                      ]
+                    },
+                    "providerUpdatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "network",
+                        "signerAccountId",
+                        "receiverId",
+                        "actions"
+                      ],
+                      "properties": {
+                        "network": {
+                          "type": "string",
+                          "enum": [
+                            "testnet"
+                          ]
+                        },
+                        "signerAccountId": {
+                          "type": "string"
+                        },
+                        "receiverId": {
+                          "type": "string"
+                        },
+                        "actions": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 1,
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "30000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "type",
+                                  "methodName",
+                                  "args",
+                                  "gas",
+                                  "deposit"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "FunctionCall"
+                                    ]
+                                  },
+                                  "methodName": {
+                                    "type": "string",
+                                    "enum": [
+                                      "ft_transfer_call"
+                                    ]
+                                  },
+                                  "args": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "receiver_id",
+                                      "amount",
+                                      "msg"
+                                    ],
+                                    "properties": {
+                                      "receiver_id": {
+                                        "type": "string"
+                                      },
+                                      "amount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9][0-9]*$"
+                                      },
+                                      "msg": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "gas": {
+                                    "type": "string",
+                                    "enum": [
+                                      "100000000000000"
+                                    ]
+                                  },
+                                  "deposit": {
+                                    "type": "string",
+                                    "enum": [
+                                      "1"
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "testOnly": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "settlementCredited": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Poll and persist Tidepool testnet swap status",
         "tags": [
           "settlement"
         ]

@@ -28,9 +28,11 @@ import {
   ApiError,
   cofferApi,
   type CreateOrganizationInput,
+  type IntentsDepositTransaction,
   type Organization,
   type SessionPrincipal,
 } from "@/lib/coffer-api";
+import { intentsDepositWalletRequest } from "@/lib/intents-wallet";
 
 type AuthStatus =
   | "loading"
@@ -60,6 +62,9 @@ type AuthContextValue = {
   signInWithWallet: () => Promise<void>;
   signInWithPrivy: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<void>;
+  signIntentsDeposit: (
+    transaction: IntentsDepositTransaction,
+  ) => Promise<string>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -145,6 +150,7 @@ function AuthProviderInner({
         features: {
           signInAndSignMessage: true,
           signMessage: true,
+          signAndSendTransaction: true,
           testnet: true,
         },
       });
@@ -305,6 +311,37 @@ function AuthProviderInner({
     [refresh],
   );
 
+  const signIntentsDeposit = useCallback(
+    async (transaction: IntentsDepositTransaction) => {
+      if (status !== "authenticated" || !session) {
+        throw new Error("Coffer rejected an unsafe testnet deposit request.");
+      }
+      const request = intentsDepositWalletRequest(
+        transaction,
+        session.wallets
+          .filter((wallet) => wallet.network === "testnet")
+          .map((wallet) => wallet.accountId),
+      );
+
+      const nearConnector = await connector();
+      const connected = await nearConnector.getConnectedWallet();
+      if (
+        !connected.accounts.some(
+          (account) => account.accountId === transaction.signerAccountId,
+        )
+      ) {
+        throw new Error("Connect the verified testnet wallet before signing.");
+      }
+      const outcome = await connected.wallet.signAndSendTransaction(request);
+      const transactionHash = outcome.transaction.hash;
+      if (!/^[1-9A-HJ-NP-Za-km-z]{43,44}$/.test(transactionHash)) {
+        throw new Error("The wallet returned an invalid transaction hash.");
+      }
+      return transactionHash;
+    },
+    [connector, session, status],
+  );
+
   const logout = useCallback(async () => {
     setError("");
     try {
@@ -353,6 +390,7 @@ function AuthProviderInner({
       signInWithWallet: () => completeWalletSignIn(),
       signInWithPrivy,
       createOrganization,
+      signIntentsDeposit,
       logout,
       refresh,
     }),
@@ -367,6 +405,7 @@ function AuthProviderInner({
       refresh,
       selectOrganization,
       session,
+      signIntentsDeposit,
       signInWithPrivy,
       status,
     ],

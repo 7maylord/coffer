@@ -10,9 +10,13 @@ import {
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
 import { Modal } from "@/components/coffer/workspace";
+import { PolicyContractDeployment } from "@/components/treasury/policy-contract-deployment";
 import {
   ApiError,
   cofferApi,
+  type IntentsAssets,
+  type IntentsQuotePreview,
+  type PreparedIntentsSwap,
   type TreasuryProposal,
   type TreasuryWorkspace,
 } from "@/lib/coffer-api";
@@ -131,6 +135,329 @@ function SplitBars({ amountAtomic }: { amountAtomic: string }) {
         Integer arithmetic · any atomic-unit remainder goes to Payroll
       </small>
     </div>
+  );
+}
+
+function IntentsAssetDiscovery() {
+  const { currentOrganization, signIntentsDeposit } = useAuth();
+  const [discovery, setDiscovery] = useState<IntentsAssets | null>(null);
+  const [originAssetId, setOriginAssetId] = useState("");
+  const [destinationAssetId, setDestinationAssetId] = useState("");
+  const [amount, setAmount] = useState("1");
+  const [quote, setQuote] = useState<IntentsQuotePreview | null>(null);
+  const [swap, setSwap] = useState<PreparedIntentsSwap | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [action, setAction] = useState("");
+  const [error, setError] = useState("");
+
+  const acceptDiscovery = (next: IntentsAssets) => {
+    const near = next.assets.filter((asset) => asset.blockchain === "near");
+    setDiscovery(next);
+    setOriginAssetId((current) => current || near[0]?.assetId || "");
+    setDestinationAssetId(
+      (current) => current || near[1]?.assetId || near[0]?.assetId || "",
+    );
+  };
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      acceptDiscovery(await cofferApi.intentsAssets());
+    } catch {
+      setError("Testnet asset discovery is unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    cofferApi
+      .intentsAssets()
+      .then((next) => active && acceptDiscovery(next))
+      .catch(
+        () => active && setError("Testnet asset discovery is unavailable."),
+      )
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const nearAssets =
+    discovery?.assets.filter((asset) => asset.blockchain === "near") ?? [];
+  const origin = nearAssets.find((asset) => asset.assetId === originAssetId);
+  const destination = nearAssets.find(
+    (asset) => asset.assetId === destinationAssetId,
+  );
+  const input = () => {
+    if (!origin || !destination || origin.assetId === destination.assetId) {
+      throw new Error("Choose two different NEAR testnet assets.");
+    }
+    return {
+      originAssetId: origin.assetId,
+      destinationAssetId: destination.assetId,
+      amountAtomic: parseAtomic(amount, origin.decimals),
+      slippageBps: 100,
+    };
+  };
+  const run = async (name: string, operation: () => Promise<void>) => {
+    setAction(name);
+    setError("");
+    try {
+      await operation();
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setAction("");
+    }
+  };
+  const resetQuote = () => {
+    setQuote(null);
+    setSwap(null);
+  };
+
+  return (
+    <section className="panel intents-assets" aria-busy={loading}>
+      <div className="panel-heading">
+        <div>
+          <span className="eyebrow">CURRENT PROVIDER ASSETS</span>
+          <h2>Testnet settlement routes</h2>
+        </div>
+        <button
+          className="button"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          <Icon name="refresh" size={16} /> Refresh assets
+        </button>
+      </div>
+      {discovery && (
+        <p className="intents-assets-summary">
+          <strong>{discovery.provider.toUpperCase()}</strong> ·{" "}
+          {discovery.environment} · {discovery.assets.length} assets ·{" "}
+          {discovery.testOnly ? "test only" : "live provider"}
+        </p>
+      )}
+      {error ? (
+        <p className="form-alert" role="alert">
+          {error}
+        </p>
+      ) : loading ? (
+        <p className="api-empty">Discovering current provider asset IDs…</p>
+      ) : discovery?.assets.length ? (
+        <>
+          <div className="intents-asset-grid">
+            {discovery.assets.map((asset) => (
+              <article key={asset.assetId}>
+                <div>
+                  <strong>{asset.symbol}</strong>
+                  <span>{asset.blockchain}</span>
+                </div>
+                <code title={asset.assetId}>{asset.assetId}</code>
+                <small>{asset.decimals} decimals</small>
+              </article>
+            ))}
+          </div>
+          <div className="intents-swap-builder">
+            <div className="intents-swap-fields">
+              <label>
+                Pay with
+                <select
+                  value={originAssetId}
+                  onChange={(event) => {
+                    setOriginAssetId(event.target.value);
+                    resetQuote();
+                  }}
+                >
+                  {nearAssets.map((asset) => (
+                    <option key={asset.assetId} value={asset.assetId}>
+                      {asset.symbol} · NEAR testnet
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Receive
+                <select
+                  value={destinationAssetId}
+                  onChange={(event) => {
+                    setDestinationAssetId(event.target.value);
+                    resetQuote();
+                  }}
+                >
+                  {nearAssets.map((asset) => (
+                    <option key={asset.assetId} value={asset.assetId}>
+                      {asset.symbol} · NEAR testnet
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Amount
+                <input
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(event) => {
+                    setAmount(event.target.value);
+                    resetQuote();
+                  }}
+                />
+              </label>
+            </div>
+            <p className="intents-testnet-warning">
+              Tidepool community testnet · 1% slippage · provider signatures are
+              unverified · never credited to Coffer&apos;s ledger
+            </p>
+            <div className="button-row">
+              <button
+                className="button"
+                disabled={Boolean(action) || nearAssets.length < 2}
+                onClick={() =>
+                  void run("quote", async () => {
+                    if (!currentOrganization)
+                      throw new Error("Select an organization first.");
+                    setQuote(
+                      await cofferApi.intentsDryQuote(
+                        currentOrganization.id,
+                        input(),
+                      ),
+                    );
+                    setSwap(null);
+                  })
+                }
+              >
+                {action === "quote" ? "Quoting…" : "Get dry quote"}
+              </button>
+              <button
+                className="button button-primary"
+                disabled={Boolean(action) || !quote}
+                onClick={() =>
+                  void run("prepare", async () => {
+                    if (!currentOrganization)
+                      throw new Error("Select an organization first.");
+                    setSwap(
+                      await cofferApi.prepareIntentsSwap(
+                        currentOrganization.id,
+                        input(),
+                        crypto.randomUUID(),
+                      ),
+                    );
+                  })
+                }
+              >
+                {action === "prepare" ? "Preparing…" : "Prepare testnet swap"}
+              </button>
+            </div>
+            {quote && destination && (
+              <div className="intents-quote" aria-live="polite">
+                <span>Dry quote</span>
+                <strong>
+                  {formatAtomic(quote.amountOutAtomic, destination.decimals)}{" "}
+                  {destination.symbol}
+                </strong>
+                <small>
+                  Minimum{" "}
+                  {formatAtomic(quote.minAmountOutAtomic, destination.decimals)}{" "}
+                  · estimate {quote.timeEstimateSeconds}s
+                </small>
+              </div>
+            )}
+            {swap && origin && destination && (
+              <div className="intents-execution-review" aria-live="polite">
+                <span className="eyebrow">WALLET CONFIRMATION REQUIRED</span>
+                <h3>
+                  {formatAtomic(swap.amountInAtomic, origin.decimals)}{" "}
+                  {origin.symbol} →{" "}
+                  {formatAtomic(swap.amountOutAtomic, destination.decimals)}{" "}
+                  {destination.symbol}
+                </h3>
+                <dl>
+                  <div>
+                    <dt>Token contract</dt>
+                    <dd>{swap.originTokenContract}</dd>
+                  </div>
+                  <div>
+                    <dt>Deposit account</dt>
+                    <dd>{swap.depositAddress}</dd>
+                  </div>
+                  <div>
+                    <dt>Recipient / refund</dt>
+                    <dd>{swap.recipient}</dd>
+                  </div>
+                  <div>
+                    <dt>Deadline</dt>
+                    <dd>{new Date(swap.deadline).toLocaleString()}</dd>
+                  </div>
+                </dl>
+                <p>
+                  Status: <strong>{swap.internalStatus}</strong> · ledger
+                  credit: <strong>none</strong>
+                </p>
+                <div className="button-row">
+                  {!swap.depositTransactionHash && (
+                    <button
+                      className="button button-primary"
+                      disabled={Boolean(action)}
+                      onClick={() =>
+                        void run("sign", async () => {
+                          if (!currentOrganization)
+                            throw new Error("Select an organization first.");
+                          const transactionHash = await signIntentsDeposit(
+                            swap.transaction,
+                          );
+                          setSwap(
+                            await cofferApi.submitIntentsDeposit(
+                              currentOrganization.id,
+                              swap.id,
+                              transactionHash,
+                            ),
+                          );
+                        })
+                      }
+                    >
+                      {action === "sign"
+                        ? "Waiting for wallet…"
+                        : "Sign testnet deposit"}
+                    </button>
+                  )}
+                  {swap.depositTransactionHash && (
+                    <button
+                      className="button"
+                      disabled={Boolean(action)}
+                      onClick={() =>
+                        void run("poll", async () => {
+                          if (!currentOrganization)
+                            throw new Error("Select an organization first.");
+                          setSwap(
+                            await cofferApi.pollIntentsSwap(
+                              currentOrganization.id,
+                              swap.id,
+                            ),
+                          );
+                        })
+                      }
+                    >
+                      {action === "poll" ? "Checking…" : "Check status"}
+                    </button>
+                  )}
+                </div>
+                {swap.internalStatus === "UNVERIFIED_SUCCESS" && (
+                  <p className="form-alert">
+                    Tidepool reports completion, but Coffer has not credited its
+                    ledger because destination settlement is not independently
+                    verified.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="api-empty">The provider returned no supported assets.</p>
+      )}
+    </section>
   );
 }
 
@@ -431,6 +758,8 @@ function TreasuryJourney({ view }: { view: View }) {
             </div>
           </section>
 
+          <IntentsAssetDiscovery />
+
           <div className="treasury-layout">
             <section className="panel api-invoice-panel" aria-busy={loading}>
               <div className="panel-heading">
@@ -519,6 +848,13 @@ function TreasuryJourney({ view }: { view: View }) {
               )}
             </aside>
           </div>
+
+          {organizationId &&
+            role &&
+            canManageTreasuryPolicy(role) &&
+            workspace?.activePolicy && (
+              <PolicyContractDeployment organizationId={organizationId} />
+            )}
 
           <section className="panel treasury-proposal-rail">
             <div className="panel-heading">

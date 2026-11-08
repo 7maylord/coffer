@@ -93,11 +93,13 @@ export class AssetRegistry {
   }
 
   registerProviderAsset(asset: AssetDefinition): void {
+    const validEnvironment =
+      (asset.environment === 'mainnet' && !asset.testOnly) ||
+      (asset.environment === 'testnet' && asset.testOnly);
     if (
       asset.adapter !== 'near-intents' ||
-      asset.environment !== 'mainnet' ||
+      !validEnvironment ||
       asset.discoverySource !== 'provider' ||
-      asset.testOnly ||
       asset.decimals < 0 ||
       asset.decimals > 77 ||
       !Number.isInteger(asset.decimals)

@@ -78,6 +78,11 @@ describe('generated OpenAPI', () => {
       '/v1/orgs/{orgId}/proposals/{proposalId}/approvals',
       '/v1/orgs/{orgId}/proposals/{proposalId}/revisions',
       '/v1/orgs/{orgId}/proposals/{proposalId}/verify',
+      '/v1/orgs/{orgId}/settlement/intents/dry-quote',
+      '/v1/orgs/{orgId}/settlement/intents/swaps',
+      '/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}',
+      '/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/deposit-evidence',
+      '/v1/orgs/{orgId}/settlement/intents/swaps/{swapId}/poll',
       '/v1/orgs/{orgId}/treasury',
       '/v1/orgs/{orgId}/treasury/policy',
       '/v1/orgs/{orgId}/treasury/split-proposals',
@@ -93,6 +98,7 @@ describe('generated OpenAPI', () => {
       '/v1/public/invoices/{publicToken}/quotes',
       '/v1/public/invoices/{publicToken}/settlement/assets',
       '/v1/settlement/assets',
+      '/v1/settlement/intents/assets',
     ]);
     expect(document.paths['/v1/orgs/{orgId}/payments']?.post?.operationId).toBe(
       'Settlement.initiate',
@@ -101,6 +107,12 @@ describe('generated OpenAPI', () => {
       document.paths['/v1/orgs/{orgId}/proposals/{proposalId}/verify']?.post
         ?.operationId,
     ).toBe('Policy.verify');
+    expect(
+      JSON.stringify(
+        document.paths['/v1/orgs/{orgId}/policy-contract/deployment']?.get
+          ?.responses,
+      ),
+    ).toContain('deploymentStatus');
   });
 
   it('models exact atomic amounts as decimal strings and safe defaults', () => {
@@ -148,6 +160,12 @@ describe('generated OpenAPI', () => {
     );
     expect(JSON.stringify(treasurySplit?.responses)).toContain(
       'instructionDigest',
+    );
+    const intentsSwap =
+      document.paths['/v1/orgs/{orgId}/settlement/intents/swaps']?.post;
+    expect(JSON.stringify(intentsSwap?.requestBody)).toContain('amountAtomic');
+    expect(JSON.stringify(intentsSwap?.responses)).toContain(
+      'settlementCredited',
     );
   });
 });

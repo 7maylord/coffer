@@ -58,6 +58,9 @@ const envSchema = z
     NEAR_TESTNET_TRANSFERS_ENABLED: featureFlag,
     NEAR_INTENTS_DRY_QUOTES_ENABLED: featureFlag,
     NEAR_INTENTS_WET_QUOTES_ENABLED: featureFlag,
+    NEAR_INTENTS_PROVIDER: z
+      .enum(['one-click', 'tidepool'])
+      .default('one-click'),
     FEATURE_CONFIDENTIAL_SWAPS: featureFlag,
     FEATURE_NATIVE_POLICY_CONTRACT: disabled,
     FEATURE_AGENT_EXECUTION: featureFlag,
@@ -108,6 +111,24 @@ const envSchema = z
       .default('zai-org/GLM-5.1-FP8'),
   })
   .superRefine((value, context) => {
+    if (value.NEAR_INTENTS_API_KEY && value.NEAR_INTENTS_JWT) {
+      context.addIssue({
+        code: 'custom',
+        path: ['NEAR_INTENTS_API_KEY'],
+        message: 'Configure only one NEAR Intents credential',
+      });
+    }
+    if (
+      value.NEAR_INTENTS_PROVIDER === 'tidepool' &&
+      new URL(value.NEAR_INTENTS_API_URL).origin !==
+        'https://www.usetidepool.tech'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['NEAR_INTENTS_API_URL'],
+        message: 'Tidepool provider requires its pinned public origin',
+      });
+    }
     if (
       value.LIVE_TRANSFERS_ENABLED &&
       !value.NEAR_TESTNET_TRANSFERS_ENABLED &&

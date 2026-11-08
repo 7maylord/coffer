@@ -62,4 +62,26 @@ describe('AssetRegistry', () => {
       'Invalid NEAR',
     );
   });
+
+  it('accepts Tidepool discovery only as test-only provider metadata', () => {
+    const registry = new AssetRegistry();
+    const asset = {
+      assetId: 'nep141:usdc.tidepool-sandbox.testnet',
+      adapter: 'near-intents' as const,
+      environment: 'testnet' as const,
+      network: 'near-testnet',
+      symbol: 'USDC',
+      decimals: 6,
+      kind: 'token' as const,
+      tokenContract: 'usdc.tidepool-sandbox.testnet',
+      testOnly: true,
+      discoverySource: 'provider' as const,
+    };
+    registry.registerProviderAsset(asset);
+
+    expect(registry.require(asset.assetId)).toEqual(asset);
+    expect(() =>
+      registry.registerProviderAsset({ ...asset, testOnly: false }),
+    ).toThrow('provider-discovered');
+  });
 });

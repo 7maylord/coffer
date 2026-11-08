@@ -2,9 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { MockSettlementAdapter } from './mock-settlement.adapter.js';
 import { SettlementController } from './settlement.controller.js';
+import { parseEnvironment } from '../config/env.js';
+import { AssetRegistry } from '../treasury/asset-registry.js';
+import { NearIntents1ClickAdapter } from './near-intents-1click.adapter.js';
 
 const validRequest = {
   sourceAssetId: 'mock:base:usdc',
@@ -22,11 +26,65 @@ describe('SettlementController', () => {
 
   beforeEach(() => {
     let sequence = 0;
+    const environment = parseEnvironment({
+      NEAR_INTENTS_PROVIDER: 'tidepool',
+      NEAR_INTENTS_API_URL: 'https://www.usetidepool.tech',
+      NEAR_INTENTS_DRY_QUOTES_ENABLED: 'true',
+    });
+    const nearIntents = new NearIntents1ClickAdapter(
+      environment,
+      new AssetRegistry(),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify([
+              {
+                assetId: 'nep141:wnear.tidepool-sandbox.testnet',
+                blockchain: 'near',
+                symbol: 'wNEAR',
+                decimals: 24,
+                contractAddress: 'wnear.tidepool-sandbox.testnet',
+              },
+            ]),
+          ),
+      ) as typeof fetch,
+    );
     controller = new SettlementController(
       new MockSettlementAdapter({
         now: () => new Date('2026-10-29T00:00:00.000Z'),
         idFactory: (prefix) => `${prefix}_${++sequence}`,
       }),
+      nearIntents,
+      environment,
+    );
+  });
+
+  it('exposes validated Tidepool assets as testnet-only discovery', async () => {
+    await expect(controller.intentsAssets()).resolves.toEqual({
+      provider: 'tidepool',
+      environment: 'testnet',
+      testOnly: true,
+      assets: [
+        {
+          assetId: 'nep141:wnear.tidepool-sandbox.testnet',
+          blockchain: 'near',
+          symbol: 'wNEAR',
+          decimals: 24,
+          contractAddress: 'wnear.tidepool-sandbox.testnet',
+        },
+      ],
+    });
+  });
+
+  it('fails safely when provider discovery is disabled', async () => {
+    const environment = parseEnvironment({});
+    const disabled = new SettlementController(
+      new MockSettlementAdapter(),
+      new NearIntents1ClickAdapter(environment, new AssetRegistry()),
+      environment,
+    );
+    await expect(disabled.intentsAssets()).rejects.toThrow(
+      ServiceUnavailableException,
     );
   });
 

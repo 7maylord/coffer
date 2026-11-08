@@ -128,6 +128,8 @@ describe('PolicyFactoryService', () => {
     await expect(
       service.prepare(principal, organizationId),
     ).resolves.toMatchObject({
+      deploymentStatus: 'ACTIVE',
+      binding: null,
       factoryAccountId: factoryId,
       provisionerAccountId: provisionerId,
       methodName: 'create_policy_instance',
@@ -140,6 +142,44 @@ describe('PolicyFactoryService', () => {
     ).rejects.toThrow('Verified owner wallet required');
     expect(store.bindVerifiedContract).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [null, null, 'READY'],
+    [
+      {
+        organization_commitment: organizationCommitment.toString('base64'),
+        account_id: instanceId,
+        requested_by: provisionerId,
+        status: 'Pending',
+      },
+      null,
+      'PENDING',
+    ],
+    [
+      {
+        organization_commitment: organizationCommitment.toString('base64'),
+        account_id: instanceId,
+        requested_by: provisionerId,
+        status: 'Active',
+      },
+      null,
+      'ACTIVE',
+    ],
+    [null, { contractAccountId: instanceId }, 'BOUND'],
+  ])(
+    'reports the reload-safe deployment state',
+    async (instance, binding, status) => {
+      const { service, store } = fixture({ get_instance: instance });
+      vi.mocked(store.contractBinding).mockResolvedValue(binding as never);
+
+      await expect(
+        service.prepare(principal, organizationId),
+      ).resolves.toMatchObject({
+        deploymentStatus: status,
+        binding,
+      });
+    },
+  );
 
   it('does not prepare an under-quorum deployment', async () => {
     const { service, store, client } = fixture();
@@ -201,7 +241,14 @@ describe('PolicyFactoryService', () => {
         approvers: ['owner.testnet', 'approver.testnet'],
       }),
     ).rejects.toThrow('Distinct verified owner and approvers required');
-    const pending = fixture({ get_instance: { status: 'Pending' } });
+    const pending = fixture({
+      get_instance: {
+        organization_commitment: organizationCommitment.toString('base64'),
+        account_id: instanceId,
+        requested_by: provisionerId,
+        status: 'Pending',
+      },
+    });
     await expect(
       pending.service.previewSponsoredCall(principal, organizationId, {
         controller: 'owner.testnet',

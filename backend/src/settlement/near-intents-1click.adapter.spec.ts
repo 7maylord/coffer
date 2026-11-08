@@ -66,6 +66,7 @@ function fetcherFor(
     signatureValid?: boolean;
     malformedTokens?: unknown;
     malformedStatus?: unknown;
+    quoteAmountIn?: string;
     requests?: Array<{ url: string; init?: RequestInit }>;
   } = {},
 ): {
@@ -90,6 +91,10 @@ function fetcherFor(
       >;
       const response = cloneRecord(dryQuoteFixture);
       response.quoteRequest = request;
+      if (options.quoteAmountIn) {
+        (response.quote as Record<string, unknown>).amountIn =
+          options.quoteAmountIn;
+      }
       if (request.dry === false) {
         const quote = response.quote as Record<string, unknown>;
         quote.depositAddress = 'deposit.near';
@@ -194,6 +199,83 @@ describe('NearIntents1ClickAdapter', () => {
     );
   });
 
+  it('keeps Tidepool assets and status test-only and explicitly unverified', async () => {
+    const environment = parseEnvironment({
+      NEAR_INTENTS_PROVIDER: 'tidepool',
+      NEAR_INTENTS_API_URL: 'https://www.usetidepool.tech',
+      NEAR_INTENTS_DRY_QUOTES_ENABLED: 'true',
+      NEAR_INTENTS_API_KEY: 'must-not-leave-coffer',
+    });
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const mock = fetcherFor({ requests });
+    const assets = new AssetRegistry();
+    const client = new NearIntents1ClickAdapter(
+      environment,
+      assets,
+      mock.fetcher,
+      mock.verify,
+    );
+
+    await expect(client.quote(quoteInput())).resolves.toMatchObject({
+      dry: true,
+      depositType: 'INTENTS',
+      refundType: 'INTENTS',
+      signatureVerified: false,
+    });
+    const quoteRequest = requests.find((item) =>
+      item.url.endsWith('/v0/quote'),
+    );
+    expect(JSON.parse(bodyText(quoteRequest?.init?.body))).toMatchObject({
+      depositType: 'INTENTS',
+      refundType: 'INTENTS',
+    });
+    expect(mock.verify).not.toHaveBeenCalled();
+    expect(
+      requests.every(
+        ({ init }) =>
+          !new Headers(init?.headers).has('x-api-key') &&
+          !new Headers(init?.headers).has('authorization'),
+      ),
+    ).toBe(true);
+    expect(assets.require(originAsset)).toMatchObject({
+      environment: 'testnet',
+      network: 'near-testnet',
+      testOnly: true,
+    });
+    await expect(client.pollStatus('deposit.near')).resolves.toMatchObject({
+      status: 'PENDING_DEPOSIT',
+      signatureVerified: false,
+    });
+  });
+
+  it('supports Tidepool wet quotes and deposit evidence behind both live flags', async () => {
+    const liveEnvironment = parseEnvironment({
+      NEAR_INTENTS_PROVIDER: 'tidepool',
+      NEAR_INTENTS_API_URL: 'https://www.usetidepool.tech',
+      NEAR_INTENTS_DRY_QUOTES_ENABLED: 'true',
+      NEAR_INTENTS_WET_QUOTES_ENABLED: 'true',
+      LIVE_TRANSFERS_ENABLED: 'true',
+    });
+    const { client } = adapter({ status: 'KNOWN_DEPOSIT_TX' }, liveEnvironment);
+    await expect(
+      client.quote(quoteInput({ dry: false })),
+    ).resolves.toMatchObject({
+      dry: false,
+      depositAddress: 'deposit.near',
+      signatureVerified: false,
+    });
+    await expect(
+      client.submitDepositEvidence({
+        transactionHash: 'transaction-hash',
+        depositAddress: 'deposit.near',
+        nearSenderAccount: 'payer.near',
+      }),
+    ).resolves.toMatchObject({
+      status: 'KNOWN_DEPOSIT_TX',
+      signatureVerified: false,
+    });
+  });
+
   it('rejects signature failure, provider echo changes, and malformed responses', async () => {
     await expect(
       adapter({ signatureValid: false }).client.quote(quoteInput()),
@@ -202,6 +284,9 @@ describe('NearIntents1ClickAdapter', () => {
       adapter({
         malformedTokens: [{ assetId: 'missing-fields' }],
       }).client.discoverAssets(),
+    ).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE_INVALID' });
+    await expect(
+      adapter({ quoteAmountIn: '1' }).client.quote(quoteInput()),
     ).rejects.toMatchObject({ code: 'PROVIDER_RESPONSE_INVALID' });
     await expect(
       adapter({ malformedStatus: { status: 'MADE_UP' } }).client.pollStatus(

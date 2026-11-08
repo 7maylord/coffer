@@ -96,8 +96,10 @@ const instructionSchema = z
     receiverAccountId: accountId,
     amountAtomic: atomicAmount,
     memo: z.string().max(256).optional(),
+    transferCallMessage: z.string().min(1).max(500).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => !(value.memo && value.transferCallMessage));
 const receiptSchema = z
   .object({
     receipt_id: z.string().min(1),
@@ -173,13 +175,23 @@ export class NearTestnetTransferAdapter {
       actions: [
         {
           type: 'FunctionCall',
-          methodName: 'ft_transfer',
-          args: {
-            receiver_id: instruction.receiverAccountId,
-            amount: instruction.amountAtomic,
-            ...(instruction.memo ? { memo: instruction.memo } : {}),
-          },
-          gas: '30000000000000',
+          methodName: instruction.transferCallMessage
+            ? 'ft_transfer_call'
+            : 'ft_transfer',
+          args: instruction.transferCallMessage
+            ? {
+                receiver_id: instruction.receiverAccountId,
+                amount: instruction.amountAtomic,
+                msg: instruction.transferCallMessage,
+              }
+            : {
+                receiver_id: instruction.receiverAccountId,
+                amount: instruction.amountAtomic,
+                ...(instruction.memo ? { memo: instruction.memo } : {}),
+              },
+          gas: instruction.transferCallMessage
+            ? '100000000000000'
+            : '30000000000000',
           deposit: '1',
         },
       ],
@@ -239,6 +251,7 @@ export class NearTestnetTransferAdapter {
         assetId: instruction.assetId,
         amountAtomic: instruction.amountAtomic,
         memo: instruction.memo ?? null,
+        transferCallMessage: instruction.transferCallMessage ?? null,
       }),
       verifiedAt,
     };
@@ -275,11 +288,17 @@ export class NearTestnetTransferAdapter {
       this.assets.registerVerifiedTestToken(contractId);
     }
     try {
-      const asset = this.assets.assertAdapter(assetIdValue, 'near-testnet');
+      const asset = this.assets.require(assetIdValue);
+      const supportedAdapter =
+        asset.adapter === 'near-testnet' ||
+        (asset.adapter === 'near-intents' &&
+          asset.discoverySource === 'provider');
       if (
+        !supportedAdapter ||
         asset.environment !== 'testnet' ||
         asset.network !== 'near-testnet' ||
-        !asset.testOnly
+        !asset.testOnly ||
+        (asset.adapter === 'near-intents' && asset.kind !== 'token')
       ) {
         throw new AssetRegistryError('Invalid testnet asset metadata');
       }
@@ -511,8 +530,12 @@ function isOnlyFtTransfer(
   const call = actions[0].FunctionCall;
   if (
     !record(call) ||
-    call.method_name !== 'ft_transfer' ||
-    scalar(call.gas) !== '30000000000000' ||
+    call.method_name !==
+      (instruction.transferCallMessage ? 'ft_transfer_call' : 'ft_transfer') ||
+    scalar(call.gas) !==
+      (instruction.transferCallMessage
+        ? '100000000000000'
+        : '30000000000000') ||
     scalar(call.deposit) !== '1' ||
     typeof call.args !== 'string'
   ) {
@@ -525,16 +548,22 @@ function isOnlyFtTransfer(
     return false;
   }
   if (!record(args)) return false;
-  const allowed = instruction.memo
-    ? ['amount', 'memo', 'receiver_id']
-    : ['amount', 'receiver_id'];
+  const allowed = instruction.transferCallMessage
+    ? ['amount', 'msg', 'receiver_id']
+    : instruction.memo
+      ? ['amount', 'memo', 'receiver_id']
+      : ['amount', 'receiver_id'];
   if (Object.keys(args).sort().join(',') !== allowed.sort().join(',')) {
     return false;
   }
   return (
     args.receiver_id === instruction.receiverAccountId &&
     args.amount === instruction.amountAtomic &&
-    (instruction.memo ? args.memo === instruction.memo : true)
+    (instruction.transferCallMessage
+      ? args.msg === instruction.transferCallMessage
+      : instruction.memo
+        ? args.memo === instruction.memo
+        : true)
   );
 }
 

@@ -13,6 +13,8 @@ import {
   ApiBody,
   ApiCookieAuth,
   ApiHeader,
+  ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
@@ -81,6 +83,147 @@ const sponsoredDeploymentSchema = z
   })
   .strict();
 const csrfHeader = { name: 'X-CSRF-Token', required: true } as const;
+const bindingSummaryOpenApiSchema = {
+  type: 'object' as const,
+  additionalProperties: false,
+  required: [
+    'network',
+    'contractAccountId',
+    'expectedCodeHash',
+    'organizationCommitment',
+    'required',
+  ],
+  properties: {
+    network: { type: 'string' as const, enum: ['testnet'] },
+    contractAccountId: { type: 'string' as const },
+    expectedCodeHash: { type: 'string' as const },
+    organizationCommitment: {
+      type: 'string' as const,
+      pattern: '^[0-9a-f]{64}$',
+    },
+    required: { type: 'boolean' as const, enum: [true] },
+  },
+};
+const deploymentOpenApiSchema = {
+  type: 'object' as const,
+  additionalProperties: false,
+  required: [
+    'deploymentStatus',
+    'binding',
+    'factoryAccountId',
+    'provisionerAccountId',
+    'methodName',
+    'organizationCommitment',
+    'policyDigest',
+    'approvalThreshold',
+    'eligibleApprovers',
+    'minimumDepositYocto',
+    'expectedInstanceAccountId',
+  ],
+  properties: {
+    deploymentStatus: {
+      type: 'string' as const,
+      enum: ['READY', 'PENDING', 'ACTIVE', 'BOUND'],
+    },
+    binding: { ...bindingSummaryOpenApiSchema, nullable: true },
+    factoryAccountId: { type: 'string' as const },
+    provisionerAccountId: { type: 'string' as const },
+    methodName: { type: 'string' as const, enum: ['create_policy_instance'] },
+    organizationCommitment: { type: 'string' as const },
+    policyDigest: { type: 'string' as const },
+    approvalThreshold: { type: 'integer' as const, minimum: 2, maximum: 16 },
+    eligibleApprovers: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        additionalProperties: false,
+        required: ['userId', 'role', 'accountId'],
+        properties: {
+          userId: { type: 'string' as const },
+          role: { type: 'string' as const, enum: ['OWNER', 'APPROVER'] },
+          accountId: { type: 'string' as const },
+        },
+      },
+    },
+    minimumDepositYocto: { type: 'string' as const, pattern: '^[1-9][0-9]*$' },
+    expectedInstanceAccountId: { type: 'string' as const },
+  },
+};
+const deploymentPreviewOpenApiSchema = {
+  type: 'object' as const,
+  additionalProperties: false,
+  required: [
+    'network',
+    'signerId',
+    'receiverId',
+    'methodName',
+    'args',
+    'gas',
+    'depositYocto',
+    'expectedInstanceAccountId',
+  ],
+  properties: {
+    network: { type: 'string' as const, enum: ['testnet'] },
+    signerId: { type: 'string' as const },
+    receiverId: { type: 'string' as const },
+    methodName: { type: 'string' as const, enum: ['create_policy_instance'] },
+    args: {
+      type: 'object' as const,
+      additionalProperties: false,
+      required: [
+        'organization_commitment',
+        'controller',
+        'policy_digest',
+        'approvers',
+        'approval_threshold',
+      ],
+      properties: {
+        organization_commitment: { type: 'string' as const },
+        controller: { type: 'string' as const },
+        policy_digest: { type: 'string' as const },
+        approvers: {
+          type: 'array' as const,
+          minItems: 2,
+          maxItems: 16,
+          items: { type: 'string' as const },
+        },
+        approval_threshold: {
+          type: 'integer' as const,
+          minimum: 2,
+          maximum: 16,
+        },
+      },
+    },
+    gas: { type: 'string' as const, pattern: '^[1-9][0-9]*$' },
+    depositYocto: { type: 'string' as const, pattern: '^[1-9][0-9]*$' },
+    expectedInstanceAccountId: { type: 'string' as const },
+  },
+};
+const bindingOpenApiSchema = {
+  ...bindingSummaryOpenApiSchema,
+  required: [
+    ...bindingSummaryOpenApiSchema.required,
+    'id',
+    'organizationId',
+    'verifiedAt',
+    'version',
+    'createdAt',
+    'updatedAt',
+  ],
+  properties: {
+    ...bindingSummaryOpenApiSchema.properties,
+    id: { type: 'string' as const, format: 'uuid' },
+    organizationId: { type: 'string' as const, format: 'uuid' },
+    verifiedAt: {
+      type: 'string' as const,
+      format: 'date-time',
+      nullable: true,
+    },
+    version: { type: 'integer' as const, minimum: 1 },
+    createdAt: { type: 'string' as const, format: 'date-time' },
+    updatedAt: { type: 'string' as const, format: 'date-time' },
+  },
+};
 const materialOpenApiSchema = {
   type: 'object' as const,
   additionalProperties: false,
@@ -137,6 +280,7 @@ export class PolicyController {
   @ApiOperation({
     summary: 'Prepare a provisioner-signed testnet policy instance call',
   })
+  @ApiOkResponse({ schema: deploymentOpenApiSchema })
   deployment(
     @Req() request: AuthenticatedRequest,
     @Param('orgId') organizationId: string,
@@ -160,6 +304,7 @@ export class PolicyController {
     },
   })
   @ApiOperation({ summary: 'Prepare an unsigned, sponsor-funded factory call' })
+  @ApiCreatedResponse({ schema: deploymentPreviewOpenApiSchema })
   deploymentPreview(
     @Req() request: AuthenticatedRequest,
     @Param('orgId') organizationId: string,
@@ -179,6 +324,7 @@ export class PolicyController {
   @ApiOperation({
     summary: 'Bind an active, final and verified factory policy instance',
   })
+  @ApiCreatedResponse({ schema: bindingOpenApiSchema })
   bindContract(
     @Req() request: AuthenticatedRequest,
     @Param('orgId') organizationId: string,
