@@ -1,39 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Privy, { LocalStorage } from "@privy-io/js-sdk-core";
 import { SignPagePlugin } from "@peerfolio/privy-near-connect/sign-page-plugin";
 
 export default function SignPage() {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const clientId = process.env.NEXT_PUBLIC_PRIVY_APP_CLIENT_ID;
-  const [ready, setReady] = useState(false);
-  const client = useMemo(
-    () =>
-      appId && clientId
-        ? new Privy({ appId, clientId, storage: new LocalStorage() })
-        : null,
-    [appId, clientId],
-  );
+  const [client, setClient] = useState<Privy | null>(null);
 
   useEffect(() => {
     let active = true;
-    if (client)
-      void client.initialize().then(() => {
-        if (active) setReady(true);
+    if (appId) {
+      const next = new Privy({ appId, storage: new LocalStorage() });
+      void next.initialize().then(() => {
+        if (active) setClient(next);
       });
+    }
     return () => {
       active = false;
     };
-  }, [client]);
+  }, [appId]);
 
-  if (!client)
+  if (!appId)
     return (
       <main className="auth-page">
         <p>Privy is not configured for this Coffer environment.</p>
       </main>
     );
-  if (!ready)
+  if (!client)
     return (
       <main className="auth-page" aria-busy="true">
         <p>Preparing the secure signing window…</p>

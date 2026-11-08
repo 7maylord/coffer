@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { loadLocalEnvironment } from './config/load-env.js';
 import { SettlementOutboxWorker } from './settlement/settlement-outbox.worker.js';
 
 async function main(): Promise<void> {
+  loadLocalEnvironment();
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['error', 'warn'],
   });

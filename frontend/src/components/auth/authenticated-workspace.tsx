@@ -66,8 +66,8 @@ function SignIn() {
           </button>
         ) : (
           <p className="auth-note">
-            Privy social login is available when its public App ID and Client ID
-            are configured.
+            Privy social login is available when its public App ID is
+            configured.
           </p>
         )}
       </div>
@@ -93,6 +93,8 @@ function OrganizationSetup() {
     setBusy(true);
     try {
       await createOrganization({ name: name.trim(), slug });
+    } catch {
+      // The auth provider owns the user-facing API error state.
     } finally {
       setBusy(false);
     }

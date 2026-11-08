@@ -1,9 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { parseEnvironment } from './config/env.js';
+import { loadLocalEnvironment } from './config/load-env.js';
 import { safeLogger } from './http/safe-logger.js';
 
 async function bootstrap() {
+  loadLocalEnvironment();
   const environment = parseEnvironment();
   const app = await NestFactory.create(AppModule, {
     logger: safeLogger,

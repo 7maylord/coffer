@@ -404,13 +404,10 @@ function PrivyAuthProvider({ children }: PropsWithChildren) {
 
 export function AuthProviders({ children }: PropsWithChildren) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const clientId = process.env.NEXT_PUBLIC_PRIVY_APP_CLIENT_ID;
-  if (!appId || !clientId)
-    return <AuthProviderInner>{children}</AuthProviderInner>;
+  if (!appId) return <AuthProviderInner>{children}</AuthProviderInner>;
   return (
     <PrivyProvider
       appId={appId}
-      clientId={clientId}
       config={{
         loginMethods: ["email", "google", "github"],
         appearance: { theme: "light", accentColor: "#171916" },
