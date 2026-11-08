@@ -27,7 +27,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:fullstack": "playwright test --config playwright.fullstack.config.ts"
   },
   "dependencies": {
     "@hot-labs/near-connect": "0.11.4",
