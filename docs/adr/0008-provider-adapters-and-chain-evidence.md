@@ -24,6 +24,8 @@ Current official references reviewed at this checkpoint:
   https://docs.near.org/integrations/deposits
 - NEP-141 transfer and registration behavior:
   https://docs.near.org/integrations/fungible-tokens
+- Tidepool community testnet quote/deposit/status flow:
+  https://www.usetidepool.tech/docs/guides/first-swap
 
 ## Decision
 
@@ -49,8 +51,11 @@ it cannot authorize a replacement transfer.
 
 `NearIntents1ClickAdapter` fetches `/v0/tokens` before each quote and accepts
 only current provider-returned asset IDs. It sends atomic integer amounts using
-`EXACT_INPUT`, origin-chain deposit/refund, destination-chain recipient, bounded
-slippage, and a caller deadline. Responses are runtime validated, bounded,
+`EXACT_INPUT`, destination-chain recipient, bounded slippage, and a caller
+deadline. Official 1Click keeps origin-chain deposit/refund. Tidepool uses its
+documented `INTENTS` deposit/refund mode so a wallet funds the verifier with one
+`ft_transfer_call` instead of registering every per-quote implicit account.
+Responses are runtime validated, bounded,
 sanitized, and signature checked with
 `@defuse-protocol/one-click-sdk-typescript` 0.1.26. The adapter maps exactly
 `PENDING_DEPOSIT`, `KNOWN_DEPOSIT_TX`, `PROCESSING`, `SUCCESS`,
@@ -62,6 +67,22 @@ and deposit submission additionally require both the Intents wet-quote flag and
 the global live-transfer flag. Confidentiality additionally requires its own
 flag. Polling is read-only so an existing live operation can still be reconciled
 after outbound execution is disabled.
+
+The `tidepool` provider option reuses the `near-intents` interface but is pinned
+to its public testnet origin and never receives 1Click credentials. It permits
+only provider-discovered NEAR-to-NEAR token routes. An executable quote is
+tenant-bound and persisted before its exact NEP-141 instruction is returned to
+the browser. New records persist `depositType=INTENTS`; pre-existing
+`ORIGIN_CHAIN` records retain their original instruction. The authenticated
+wallet must sign manually. For `INTENTS`, Coffer fixes the call to the origin
+token contract, method `ft_transfer_call`, receiver
+`verifier.tidepool-sandbox.testnet`, 100 TGas, one yoctoNEAR and `msg` equal to
+the quote deposit address. The backend re-discovers the asset and applies the
+same finalized transaction, exact call/message, event, durable hash-claim and
+idempotency checks as direct testnet evidence.
+Tidepool quote/status signatures are not an official 1Click trust root, so they
+remain explicitly unverified. Provider `SUCCESS` becomes
+`UNVERIFIED_SUCCESS`, never a settlement ledger posting.
 
 ## Consequences
 
@@ -75,3 +96,7 @@ The adapter layer does not itself post settlement to the ledger. Durable payment
 orchestration must persist the instruction before wallet or provider side
 effects, then feed verified evidence through the existing idempotent settlement
 and reconciliation path.
+
+The Tidepool path demonstrates testnet routing and wallet authorization only.
+It does not prove 1Click compatibility, mainnet liquidity, destination-chain
+finality, confidentiality, production custody, or funds-safe settlement.

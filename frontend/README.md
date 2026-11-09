@@ -10,20 +10,48 @@ pnpm dev
 Copy `.env.example` to `.env.local`, then open http://localhost:3000. Enter
 `/demo/overview` for the public synthetic workspace. Canonical routes such as
 `/overview` require a backend-issued Coffer session created from a fresh
-NEP-413 signature on NEAR testnet. No UI action moves funds.
+NEP-413 signature on NEAR testnet. No UI action moves funds by default; the
+backend configuration remains mock-only. When the three explicit
+testnet flags are enabled, Treasury can ask the verified wallet to sign one
+reviewed Tidepool NEP-141 deposit; it never signs automatically.
 
 `COFFER_API_URL` is server-only. Next.js proxies `/api/coffer/*` to that origin,
 so the HttpOnly session cookie remains same-origin. Optional Privy support uses
-the public `NEXT_PUBLIC_PRIVY_APP_ID` and `NEXT_PUBLIC_PRIVY_APP_CLIENT_ID`.
+only the public `NEXT_PUBLIC_PRIVY_APP_ID`.
 Privy creates an embedded NEAR wallet, but Coffer still authenticates it through
 the same backend-verified NEP-413 challenge as any other NEAR Connect wallet.
 The Privy dashboard must allow the local/site origin before that flow works.
+NEAR Intents credentials and the policy-factory provisioner key belong only in
+`backend/.env`; never expose them as `NEXT_PUBLIC_*` values.
 
 - The generated OpenAPI types live in `src/lib/api-schema.d.ts`; `src/lib/coffer-api.ts` validates every consumed response at runtime.
 - The Coffer UI lives in `src/components/coffer`, with typed fixtures and exact-cent arithmetic in `src/lib/demo.ts`.
 - The original wallet example remains isolated at `/hello-near` and is not part of the Coffer demo.
+- The owner treasury route prepares a per-organization factory call, tracks its
+  final-chain status, and binds only a backend-verified active instance. It does
+  not sign with or receive the sponsor key.
+- The authenticated Treasury screen discovers the current Intents provider
+  assets, previews a dry quote, persists an executable quote, displays the exact
+  token/deposit/amount/deadline, and requests one explicit wallet signature.
+  Tidepool results stay testnet/test-only and never credit the Coffer ledger.
 - Configure the network and contract addresses in `src/config.ts`.
 - `src/providers/near-provider.tsx` supplies the wallet context using NEAR Connect and `near-api-js`. The function call key plugin permits `set_greeting` calls on the configured contract with a limited allowance.
+
+## Testnet wallet integration
+
+The deployed test asset is
+`near:testnet:nep141:ctusd.olymight.testnet`. The Tidepool Treasury flow consumes
+a backend-created canonical transaction, asks the connected NEAR wallet to sign
+that exact `ft_transfer_call` into Tidepool's verifier with the quote deposit
+address as `msg`, and returns only the transaction hash for independent backend
+verification. No per-quote storage registration is required. It shows provider
+completion as unverified and never
+marks an invoice or ledger entry paid from a wallet callback alone.
+
+The policy approval UI will similarly submit the backend-generated
+`create_proposal`/`approve_proposal` calls to the configured approver wallet.
+For the hackathon, `olymight.testnet` and `olumight.testnet` demonstrate two
+distinct keys; production requires independently controlled approver wallets.
 
 ```sh
 pnpm lint

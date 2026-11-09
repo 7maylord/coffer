@@ -158,8 +158,10 @@ Progress snapshot on 2026-10-28:
   `factory.olymight.testnet` on 2026-11-07. Final byte, policy-hash,
   provisioner, deposit, balance and key checks passed. Backend owner-only preparation and final-chain binding are
   implemented with code/configuration/key checks and transactional tenant
-  authorization; unit tests pass. App-driven signing, a live per-business
-  instance/binding integration test, independent audit and callback-stall
+  authorization; unit tests pass. The owner frontend now prepares the exact
+  sponsored call, displays reload-safe ready/pending/active/bound states, and
+  requests final backend verification before binding. App-driven sponsor signing,
+  a live per-business instance/binding integration test, independent audit and callback-stall
   recovery remain unimplemented or unverified. Deployment transaction IDs and
   exact hashes are recorded in `contracts/policy-factory/ARTIFACTS.md`.
   Current binding supports policy version 1 only; on-chain quorum-governed
@@ -178,6 +180,11 @@ Progress snapshot on 2026-10-28:
   lint, build and OpenAPI freshness. Factory Rust tests passed 11 unit plus
   one local Sandbox global-publish/locked-instance test. The factory deployment
   is verified on testnet; a live per-business instance and app binding are not.
+  The frontend integration slice on 2026-11-07 passed 307 backend tests, both
+  strict typechecks, frontend/backend lint (pre-existing backend warnings only),
+  OpenAPI freshness, both production builds, and 7/7 desktop treasury browser
+  tests. It does not prove a live provisioner-signed instance creation; that
+  remains an explicitly authorized Gate G4 transaction and E2E check.
 
 | Ticket | Work                                                                                                                                                                                         | Tests and evidence                                                                                                                                              | Exit dependency   |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
@@ -833,7 +840,7 @@ labelled as synthetic with no fund movement.
 Optional Privy social login is integrated through the official NEAR Connect
 plugin. It creates a Privy extended-chain NEAR wallet, then requires that wallet
 to sign the same backend-verifiable NEP-413 challenge as every other wallet.
-Only public Privy App/Client IDs reach the browser; the pinned wallet executor,
+Only the public Privy App ID reaches the browser; the pinned wallet executor,
 same-origin signing page and disabled debug logging are recorded in ADR-0013.
 
 Local evidence: generated OpenAPI/types, format, ESLint, strict typecheck, two
@@ -1136,6 +1143,66 @@ absent. F0, G4 and G5 therefore remain release gates rather than completion
 claims. The next smallest task is an authorized human accessibility/security
 review followed by a clean final-revision install.
 
+### Tidepool dry-quote connection checkpoint — 2026-11-07
+
+FR-PAY-003/007, COF-204, ADR-0004 and the read-only portion of Gate G2 now
+have a community-sandbox connection check. Tidepool health reported its NEAR
+testnet verifier/code hash and bridges healthy; Coffer discovered 26 assets and
+validated a one-USDC atomic dry quote to testnet wNEAR. The quote returned no
+deposit address, and no credential, wallet signature, faucet request or funds
+were used. Tidepool assets are registered as test-only and official 1Click
+credentials are suppressed for this provider.
+
+Tidepool is community-operated and unaffiliated with NEAR/1Click. Its quote
+signature is not an official 1Click signature, and a separately verifiable
+provider key was not available from the response/docs. Coffer therefore exposes
+quotes and statuses as `signatureVerified: false`. This trust gap prohibits
+ledger settlement, but no longer blocks a clearly labeled testnet-only wallet
+demonstration.
+
+The asset-discovery slice is now exposed end to end. Authenticated clients call
+`GET /v1/settlement/intents/assets`; the controller uses the existing validated
+adapter, returns provider/environment/test-only labels, and maps provider
+failure to a safe unavailable response. The Treasury UI lists the current
+symbol, chain, decimals and exact provider `assetId` and can refresh without any
+wallet request. Controller, runtime-response, OpenAPI and browser rendering
+checks cover this read-only path.
+
+### Tidepool dry quote and testnet execution checkpoint — 2026-11-07
+
+FR-PAY-001/003–007, T-PAY-01–12, COF-203/204, ADR-0002/0003/0004 and Gates
+G2–G3 now include the smallest executable Tidepool testnet path. An
+authenticated tenant can request an exact dry quote, create one idempotent wet
+quote, review the exact one-yocto NEP-141 `ft_transfer`, and explicitly ask the
+verified NEAR testnet wallet to sign. The backend re-discovers the quoted asset,
+rejects expired or changed token metadata, independently verifies finality,
+signer, token contract, receiver, amount, gas, deposit and NEP-297 transfer
+event, claims the transaction hash once, submits evidence and persists bounded
+provider observations.
+
+The feature remains fail-closed: only NEAR-to-NEAR Tidepool routes are exposed;
+recipient and refund are fixed to the authenticated wallet; there is no server
+key or automatic signature; status polling is manual; Tidepool `SUCCESS` maps
+to `UNVERIFIED_SUCCESS`; `settlementCredited` is always false; and no ledger
+entry is created. Committed defaults remain mock/off. Local testnet use requires
+all three explicit transfer flags. Unit, OpenAPI, runtime-schema and browser
+preparation tests are implemented. A real wallet signature and actual Tidepool
+swap have not been run by the coding agent and still require explicit human
+confirmation in the wallet.
+
+Live unfunded preflight on 2026-11-07 confirmed the current provider contract:
+a one-USDC dry quote returned `0.272673450273972616704` testnet wNEAR; a
+separate executable quote returned a 64-character NEAR implicit deposit account
+and the requested deadline; and its status endpoint returned `PENDING_DEPOSIT`
+with no origin or destination transaction hashes. No wallet was opened, no
+deposit evidence was submitted, and no token or gas was spent.
+
+Final local evidence for this slice: 318 backend unit tests, 47 PostgreSQL/Redis
+integration tests, six frontend unit tests and all 16 Treasury desktop/mobile
+browser checks pass. Backend/frontend strict typechecks, lint, formatting,
+OpenAPI freshness and the Node 24 production frontend build also pass. The new
+database migration is applied to the local development database.
+
 ### Real frontend/backend J-01 integration checkpoint — 2026-11-06
 
 The J-01 browser integration portion of COF-201/202, FR-ID-002/004,
@@ -1172,6 +1239,27 @@ funds. The wider Gate G2 proposal/policy/approval chain and J-02–J-05 real
 frontend/backend browser paths remain separate integration work, and G3–G5
 remain open.
 
+### F-01 workspace response and demo-boundary regression — 2026-11-08
+
+FR-ID-002, T-ID-02, COF-601, ADR-0013 and Gate G0 now explicitly preserve the
+organization response contract and the authenticated/demo route boundary.
+Organization creation projects only `id`, `slug`, `name`, and canonical
+`role`, preventing Prisma timestamps from being rejected by the strict browser
+schema after the transaction has already committed. Setup errors remain in the
+form instead of becoming unhandled browser promise rejections.
+
+Canonical `/overview` and `/settings` no longer fall through to the synthetic
+sample pages, and the authenticated shell initializes no sample invoices,
+approvals, agents, or activity. `/demo/*` retains separate local fixtures and
+reset controls. The existing OpenAPI organization schema already described the
+corrected response, so no OpenAPI contract change was required.
+
+Evidence: 318 backend unit tests, six frontend unit tests, backend/frontend
+strict typechecks, frontend formatting, the Node 24 production build, and 12
+focused authenticated/demo Chromium tests pass. The PostgreSQL integration
+assertion was added but could not run because local Docker Desktop was paused;
+no integration pass is claimed for this checkpoint.
+
 ### Reproducible NEAR testnet deployment checkpoint — 2026-11-06
 
 The separately authorized Gate G3/G4 contract validation is complete for the
@@ -1206,3 +1294,66 @@ independently reconciled transfer through the backend adapter. Gate G4 still
 needs the UI proposal/approval journey against this deployed contract. C-07,
 independent contract security review, remains open. No mainnet, 1Click, NEAR AI,
 payroll payout or production-value transaction occurred.
+
+### Authenticated copy, sample data and Tidepool revalidation — 2026-11-08
+
+COF-601, FR-ID-002, FR-PAY-002/004–007, T-PAY-01/10/11, ADR-0008/0013 and
+Gates G3/G5 received a presentation and provider-evidence refresh. The
+authenticated overview and shared shell now use product language instead of
+repeating `testnet`, `mock`, or `demo`; the persistent `SANDBOX` and
+`Simulated balances · Wallet approval required` disclosures preserve the
+truth boundary. Transaction-specific settlement screens still identify their
+actual network, asset, provider and verification state.
+
+The public sample workspace remains isolated under `/demo/*`, but now presents
+Northstar Studio, realistic fictional client names, descriptions, invoice
+numbers, due dates and amounts. Repeated toy wording was removed from its
+working surfaces while the shell and settings continue to disclose that every
+record is fictional, browser-local, unauthenticated and unable to move funds.
+No real person, customer, invoice, payroll record or PII was introduced.
+
+Current Tidepool docs and the live 1Click-compatible API were rechecked. The
+public token endpoint returned 26 assets, including six NEAR assets. A live
+Coffer-adapter dry quote for exactly 1,000,000 atomic USDC returned correlation
+ID `e06930a4-ccc6-4db4-8326-fd2b16d7f453`,
+270,385,915,489,130,447,248,000 atomic wNEAR output and
+267,682,056,334,239,142,775,520 minimum output. The response deliberately
+remained `signatureVerified: false` for the community provider and contained no
+deposit address. No executable quote, wallet prompt, deposit, transaction hash,
+status submission, token or gas spend occurred. This proves the Tidepool
+adapter path, not official 1Click testnet availability.
+
+Evidence: frontend format, lint, strict typecheck and six exact-money/wallet
+unit tests pass; all 318 backend unit/provider-contract tests pass. The focused
+browser suite was attempted but not claimed: the user's existing Next dev
+process held the project lock and the reused session stalled at authentication.
+A fresh browser rerun remains required after that process is restarted.
+
+### Tidepool INTENTS deposit checkpoint — 2026-11-09
+
+FR-PAY-001/003–007, T-PAY-01–03/07/10–12, COF-203/204, ADR-003/008 and Gates
+G2–G3 now use Tidepool's documented `INTENTS` deposit route for new testnet
+quotes. The provider request fixes both `depositType` and `refundType` to
+`INTENTS`; the wallet instruction calls the origin NEP-141 token's
+`ft_transfer_call` with `verifier.tidepool-sandbox.testnet` as receiver, the
+exact quote input, 100 TGas, one yoctoNEAR and the fresh quote deposit address
+as `msg`. This removes the manual NEP-145 registration step for each quote.
+
+The deposit mode is persisted. Existing `ORIGIN_CHAIN` records keep their
+original `ft_transfer`, preventing an old quote from being funded through a
+different route after upgrade. Backend evidence verification now binds the
+finalized transaction to the verifier, amount, method, gas, deposit and exact
+`msg`; the browser independently rejects a mismatched verifier, amount or
+deposit address. Tidepool status remains unverified and cannot credit the
+ledger. An `INTENTS` refund is credited inside the verifier and is not the same
+as a token returned directly to the wallet.
+
+Implemented and tested locally: 319 backend unit/provider/RPC-fixture tests, 47
+PostgreSQL/Redis integration tests and six frontend exact-money/wallet tests
+pass. Backend/frontend strict typechecks, lint and generated OpenAPI consistency
+pass, and the additive migration was applied to the local development database.
+The focused browser test remains unclaimed: the user's existing Next process
+owns the project lock, while running against that process stalls at its live
+session check rather than the Playwright-mocked session. Real-wallet validation
+also remains pending. No quote was committed and no wallet, token, gas or
+deployment action was executed.

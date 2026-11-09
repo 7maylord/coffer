@@ -1,6 +1,6 @@
 # Coffer
 
-Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet, while application settlement still defaults to **mock-only** until the wallet-signing and backend-verification path is integrated. Synthetic payroll is the only permitted demo payroll data.
+Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet. Settlement still defaults to **mock-only**; an explicitly gated Tidepool testnet path now uses a user-controlled wallet and independent backend transaction verification without crediting the ledger from provider status. Synthetic payroll is the only permitted demo payroll data.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ Coffer is a NEAR-oriented finance operations prototype. The current foundation u
 nvm use
 corepack enable
 cp .env.example .env
-cp .env.example backend/.env
+cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 pnpm --dir frontend install --frozen-lockfile
 pnpm --dir backend install --frozen-lockfile

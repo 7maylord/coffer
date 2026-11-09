@@ -125,6 +125,7 @@ metadata is bounded and redacted at the API boundary.
 Use Node.js 24 and pnpm 10. Install this project independently:
 
 ```bash
+cp backend/.env.example backend/.env
 pnpm --dir backend install
 docker compose up -d postgres redis
 pnpm --dir backend prisma:generate
@@ -132,6 +133,73 @@ pnpm --dir backend prisma:migrate:deploy
 pnpm --dir backend prisma:seed
 pnpm --dir backend dev
 ```
+
+The API and worker load `backend/.env` in development and test only. Deployed
+environments must inject variables through their secret manager. The frontend
+never receives the Intents partner JWT or the factory provisioner key.
+
+## NEAR Intents (1Click)
+
+1Click does not provide a public testnet. Keep the app in mock mode and enable
+only current asset discovery and dry quotes first. For official mainnet quote
+discovery, use:
+
+```text
+SETTLEMENT_MODE=mock
+LIVE_TRANSFERS_ENABLED=false
+NEAR_INTENTS_PROVIDER=one-click
+NEAR_INTENTS_DRY_QUOTES_ENABLED=true
+NEAR_INTENTS_WET_QUOTES_ENABLED=false
+NEAR_INTENTS_API_KEY=<partner JWT>
+```
+
+The adapter discovers current asset IDs from `/v0/tokens` and sends amounts in
+atomic units. `dry=true` obtains a preview without a deposit address. Use only
+provider-returned asset IDs; the testnet `ctUSD` contract is never an Intents
+asset. Leave both credential fields empty for unauthenticated development, or
+set exactly one of `NEAR_INTENTS_API_KEY` (the preferred `X-API-Key` header) and
+`NEAR_INTENTS_JWT` (Bearer fallback). Wet quotes require all three explicit
+gates: dry quotes, wet quotes, and live transfers. Official 1Click mainnet
+execution is not enabled by the testnet UI.
+
+For the community-operated Tidepool testnet sandbox, use the following instead:
+
+```text
+SETTLEMENT_MODE=mock
+LIVE_TRANSFERS_ENABLED=true
+NEAR_TESTNET_TRANSFERS_ENABLED=true
+NEAR_INTENTS_PROVIDER=tidepool
+NEAR_INTENTS_API_URL=https://www.usetidepool.tech
+NEAR_INTENTS_DRY_QUOTES_ENABLED=true
+NEAR_INTENTS_WET_QUOTES_ENABLED=true
+```
+
+Coffer registers Tidepool-discovered assets as test-only, never forwards an
+official 1Click API key/JWT to Tidepool, and marks its quotes/statuses
+`signatureVerified: false`. Tidepool is not affiliated with NEAR or 1Click;
+never send mainnet or valuable assets to it. Its current API flow is documented
+at https://www.usetidepool.tech/docs/guides/first-swap.
+
+Authenticated clients can refresh assets through
+`GET /v1/settlement/intents/assets`, preview through
+`POST /v1/orgs/:orgId/settlement/intents/dry-quote`, and persist an executable
+quote through `POST /v1/orgs/:orgId/settlement/intents/swaps` with an
+`Idempotency-Key`. The browser displays the exact NEP-141 call and asks the
+verified testnet wallet to sign it. The backend independently verifies the
+finalized transaction before submitting its hash to Tidepool and persisting
+status observations. Provider `SUCCESS` is exposed as `UNVERIFIED_SUCCESS`
+with `settlementCredited: false`; it never posts to the Coffer ledger because
+destination settlement is not independently verified. All flags in the
+example file remain false by default.
+
+Tidepool quotes use `depositType=INTENTS` and `refundType=INTENTS`. The wallet
+calls `ft_transfer_call` on the origin token with receiver
+`verifier.tidepool-sandbox.testnet`, the exact atomic input, 100 TGas, one
+yoctoNEAR, and the quote deposit address as `msg`. This avoids NEP-145 storage
+registration for every fresh quote address. Existing persisted
+`ORIGIN_CHAIN` quotes remain executable with their original `ft_transfer`.
+An `INTENTS` refund is an internal verifier balance, not automatically a wallet
+token balance.
 
 The synthetic seed is idempotent. It creates demo roles, one issued invoice,
 and one uncertain mock settlement for the operator dashboard. It does not seed
