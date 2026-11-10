@@ -1357,3 +1357,191 @@ owns the project lock, while running against that process stalls at its live
 session check rather than the Playwright-mocked session. Real-wallet validation
 also remains pending. No quote was committed and no wallet, token, gas or
 deployment action was executed.
+
+### Gated payroll payout checkpoint — 2026-11-09
+
+COF-501, FR-PAY-004–007, FR-PRV-003, FR-AUD-001, T-PAY-04/05/10/11,
+ADR-0018 and the testnet portions of Gates G3–G4 now have a durable payroll
+payout state machine. An exact approved manifest creates one idempotent payout
+run with one committed instruction per encrypted employee line. Preparation is
+persisted before wallet construction. The authenticated organization wallet
+signs each transfer; neither the backend nor AI receives signing authority.
+
+Submitted hashes are independently checked through the existing NEAR testnet
+adapter for final execution, signer, receiver, asset, integer amount, action,
+arguments, gas, deposit and receipts. Reconciliation locks the run, records
+immutable public evidence, rejects replay, moves the batch to processing after
+the first verified item, and settles only after all items are verified. Exact
+evidence retry is idempotent so a database failure after evidence storage does
+not strand the payout. Finance-only API routes, strict runtime schemas,
+generated OpenAPI types, and the authenticated wallet UI are implemented.
+
+Local evidence: Prisma schema validation, backend strict typecheck, 322 backend
+unit/provider tests, frontend strict typecheck, lint, eight wallet/exact-money
+unit tests, and the focused desktop/mobile payroll preparation browser test
+pass. Generated OpenAPI was refreshed. Database migration and integration tests
+were not run because Docker Desktop is paused; no testnet wallet signature or
+transfer was requested in this slice.
+
+This checkpoint is not production payroll completion. Still open: two-person
+or policy-contract authorization for every batch, a wallet-signed testnet
+transaction and explorer proof, a durable exception/retry workqueue, legal
+jurisdiction-specific gross-to-net calculation, KMS-backed key rotation,
+retention/data-residency and employee-rights controls, independent security and
+contract review, mainnet/custody/provider approval, and the full NEAR AI model
+attestation verifier. `FEATURE_PAYROLL_BATCH_PAYOUT` therefore remains false by
+default, and production startup remains blocked.
+
+### Verified private payroll analysis checkpoint — 2026-11-10
+
+COF-502, FR-PRV-004–007, FR-AI-004–006, T-PRV-07/08, ADR-0010/0019 and the
+private-inference portion of Gate G4 now use the pinned official
+`@nearai/inference-sdk` 0.3.0 instead of Coffer-owned signature or attestation
+logic. The backend performs model preflight before sending the minimized
+payroll input, requires current Gateway/model TCB state and GPU evidence, pins
+the official origin, enforces an operator-reviewed measured-deployment digest,
+enables field-level E2EE, and verifies the retained response bytes. Only an
+Ed25519 `provider_tee` receipt from an approved deployment is accepted;
+Gateway-only evidence fails closed.
+
+The result remains advisory. Runtime validation limits findings to known line
+IDs and bounded review fields, and AI has no approval, policy-change, wallet,
+signing or transfer capability. Feature startup requires an API key, persistent
+payroll encryption key and deployment allowlist, while the default remains
+disabled. Coffer now requires Node 24.22.1, matching the SDK's declared engine.
+
+Local evidence on the available Node 22.21.1 host: backend strict typecheck,
+production build, formatting, OpenAPI freshness and all 323 unit/provider tests
+pass; the Prisma schema validates, the 54-ID critical-test manifest passes, and
+backend lint has warnings but no errors. Frontend strict typecheck, lint,
+production build and all eight exact-money/wallet unit tests pass. This host is
+below the supported runtime and therefore is not production certification.
+The dependency audit could not start because local pnpm failed in macOS
+Keychain lookup (`SecItemCopyMatching -50`), so no clean audit is claimed. No
+live inference, provider credential, payroll plaintext, wallet prompt or
+transfer was used.
+
+Still open: a live synthetic call and retained evidence from an operator-
+approved deployment, Node 24.22.1 CI/runtime validation, resolution or provider
+acceptance of the SDK's current Sigstore/Noble peer warning, KMS-backed key
+management and rotation, legal retention/residency controls, failure recovery,
+load tests, and independent privacy/security review. Field E2EE does not hide
+all request metadata or make public-chain payroll transfers confidential. The
+new PostgreSQL migration/integration path also remains unverified because
+Docker Desktop is manually paused.
+
+### Node 24, migration and live provider checkpoint — 2026-11-10
+
+COF-501/502, FR-PAY-004–007, FR-PRV-004–007, T-PAY-04/05/10/11,
+T-PRV-07/08, ADR-0018/0019 and the testnet portions of Gates G3–G4 were
+revalidated on Node 24.22.1. The additive
+`20261109150000_payroll_payout_runs` migration was applied to the local
+PostgreSQL database. Under Node 24, all 323 backend unit/provider tests, all 48
+PostgreSQL/Redis integration tests, strict typecheck, production build,
+formatting and lint completed successfully; lint retained warnings but no
+errors. This supersedes the preceding checkpoint's Node 22 and paused-Docker
+limitations.
+
+An explicitly approved transfer of one atomic unit of valueless ctUSD was
+signed by `olymight.testnet` and finalized as testnet transaction
+`4J4xcE7pCYZGMy29zBGUVehpnDQyi6Ft7KxrXXKZ5dWn`. Coffer's direct adapter then
+verified the testnet network, configured token code/metadata, receiver storage,
+signer, receiver, exact amount, action, arguments, gas, one-yocto deposit,
+receipts and NEP-297 event. Immutable evidence digest
+`a68459e0ae7d61d115af51c14c7d9ca3f83dfcb3005a1e2b225534f5fe1ff4a2`
+was read back from the local database. The legacy public testnet RPC returned
+deprecation error `-429`, so configuration now uses the current documented
+FastNEAR testnet endpoint. This proves live direct-adapter reconciliation, not
+the authenticated payroll API/browser wallet batch flow.
+
+The public NEAR AI model catalog currently reports `z-ai/glm-5.3-flash` ready,
+so it replaced the stale configured model. Before any prompt was sent, the
+official 0.3.0 SDK's live attestation preflight rejected NVIDIA evidence as
+`not_yet_valid`; a second ready model failed identically. The feature remains
+disabled, no prompt/API key/payroll record left Coffer, and no deployment
+digest was approved. Live inference remains blocked on valid provider evidence,
+a server-only `NEAR_AI_API_KEY`, a persistent encryption key and an
+operator-reviewed deployment digest. The SDK's Sigstore/Noble peer declaration
+also remains an upstream production-approval issue; Coffer does not override a
+cryptographic dependency graph to silence it.
+
+Still open: browser-approved synthetic payroll payout and batch reconciliation,
+provider-valid AI attestation plus a retained synthetic response, two-person
+authorization, durable payout exception operations, KMS-backed keys, legal
+payroll/retention controls, independent security review and any mainnet route.
+
+### Manual payroll entry checkpoint — 2026-11-10
+
+COF-501, FR-PRV-001/003/004, T-PRV-01/02, ADR-0010/0019 and Gate G4 now
+support building a synthetic payroll batch without preparing a CSV file. The
+finance UI opens an accessible modal, loads active tenant memberships, permits
+only `EMPLOYEE` members, pre-fills their testnet wallet when available, and
+adds rows one at a time. Duplicate users and employee codes are rejected in
+the UI. Exact atomic amounts remain strings, and the completed batch is
+serialized with correct CSV quoting into the existing strict backend import,
+membership validation, encryption, caps and immutable approval flow. No
+parallel persistence or less-validated import path was added.
+
+The organization member response is now declared in OpenAPI and runtime-
+validated by the frontend. Backend unit/provider tests remain 323/323 green;
+frontend strict typecheck and lint pass, and all nine exact-money/wallet/manual
+serialization unit tests pass. The focused Playwright test is implemented but
+not claimed passing: the user's existing Next process owns the project lock,
+and reusing its real configured session stalls at authentication before the
+modal. A clean isolated browser rerun remains required.
+
+NEAR AI authentication was also clarified from the official SDK contract: the
+NEAR AI Gateway requires a credential valid for that endpoint. A DeepSeek-
+issued API key cannot power the NEAR AI SDK against the NEAR Gateway; selecting
+a DeepSeek-family model hosted by NEAR does not change the credential issuer.
+Calling DeepSeek directly would be a separate, non-NEAR provider path without
+NEAR AI attestation or private-inference claims.
+
+### Friday readiness and employee onboarding checkpoint — 2026-11-10
+
+FR-ID-002, FR-PRV-001/003, T-ID-03/04, T-PRV-01/02, COF-601 and Gates G0/G1
+now include the complete authenticated employee invitation journey. An owner
+enters the employee's exact NEAR account in Settings and receives a single-use,
+24-hour invitation. Only a SHA-256 token digest is stored. The browser keeps the
+secret in a URL fragment, the invitee must authenticate the targeted wallet,
+and acceptance is serializable and one-time. The employee receives only the
+`EMPLOYEE` role and self-scoped payroll surface. Settings lists active members
+and permits immediate non-owner revocation. Email delivery was deliberately not
+added; the owner copies the one-time link.
+
+The manual payroll browser fixture was corrected to intercept the real
+`/payroll/imports` boundary. Payroll payout validation now executes inside the
+controller's safe error mapper, so malformed signer or transaction evidence is
+HTTP 400 rather than an unhandled validation exception. Focused controller tests
+also cover all Tidepool route delegation and safe provider/settlement error
+mapping. Generated Next test builds are isolated from an already-running dev
+server and excluded from source credential scanning.
+
+Fresh local evidence on Node 24.22.1: 341 backend unit/provider tests pass with
+85.33% statements, 80.03% branches, 85.83% functions and 86.43% lines; the
+critical branch set is 91.13%. Backend/frontend strict typecheck, formatting and
+lint pass (backend retains existing test-only warnings). Both production builds,
+OpenAPI freshness, the 306-file credential scan, the 54-ID critical manifest,
+20 mock-adapter security tests, and the loopback performance smoke (250 requests,
+25 concurrent, 5,624.7 req/s, p95 6.3 ms) pass. The final Chromium suite passes
+79 tests across desktop and mobile with one intentional desktop skip for the
+mobile-only 320 px assertion. All three contract packages pass fmt, Clippy,
+WASM checks, ABI verification, digest parity, 51 Rust unit tests and three NEAR
+Sandbox integration tests. CI now uses Node 24.22.1 and includes policy-factory
+fmt, Clippy, test, WASM check and build.
+
+The patched `minimatch` override removes the current moderate dependency
+advisory. One unpatched low `elliptic` advisory remains transitively in the NEAR
+AI and Privy dependency trees; no unsafe cryptographic override was applied.
+
+Friday is an internal submission-readiness target, not a production
+certification. Docker Desktop was manually paused during this checkpoint, so
+the 48 PostgreSQL/Redis integration tests, API E2E, migration-from-empty and
+real frontend/backend full-stack run still require a fresh pass. Also open:
+browser-approved wallet payout and reconciliation, live provider-valid NEAR AI
+attestation/response evidence, live per-business factory instance binding,
+independent security/contract/privacy review, Safari/Firefox/screen-reader
+checks, durable payout exception operations, KMS-backed keys and rotation,
+backup/restore, retention/residency/legal payroll controls, independent human
+quorum, alerting/SLO evidence, and any mainnet/custody approval. Coffer must not
+be represented as production-ready until those release gates close.

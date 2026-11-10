@@ -4,7 +4,7 @@ Coffer is a NEAR-oriented finance operations prototype. The current foundation u
 
 ## Requirements
 
-- Node.js 24.15.0 (`nvm use` reads `.nvmrc`)
+- Node.js 24.22.1 (`nvm use` reads `.nvmrc`)
 - pnpm 10.25.0
 - Docker with Compose
 - Rust 1.93.1 and `cargo-near` 0.22.0 for the contract packages
@@ -28,7 +28,7 @@ pnpm dev
 Open the frontend at `http://localhost:3000` and the API at
 `http://localhost:4000`. `/demo/overview` is the public synthetic demo;
 `/overview` starts the NEAR testnet wallet-authenticated workspace. Privy is
-optional and needs its two public client identifiers in `frontend/.env.local`.
+optional and needs only `NEXT_PUBLIC_PRIVY_APP_ID` in `frontend/.env.local`.
 The versioned API contract is `docs/api/openapi.json`.
 
 Local infrastructure uses PostgreSQL on port `5433` and Redis on `6379` by default. Both ports can be changed through `.env`.
@@ -62,6 +62,20 @@ from invoice creation through mock settlement and reconciliation. It requires
 the migrated local PostgreSQL and Redis services; it never opens a wallet or
 moves testnet/mainnet funds.
 
+## Invite employees
+
+1. Sign in as the workspace owner and open **Settings**.
+2. Enter the employee's exact verified NEAR account and create the invitation.
+3. Send the displayed single-use link only to that employee. It expires after
+   24 hours; its secret stays in the URL fragment rather than server logs.
+4. The employee opens the link, signs in with the targeted wallet, and accepts.
+   Another wallet, an expired link, or a reused link is rejected.
+5. The owner can remove any non-owner member from the same Settings page.
+
+There is no email delivery provider yet. Coffer returns the link once and stores
+only its SHA-256 digest. The employee role exposes only the self-scoped payroll
+surface; it cannot import, approve, or execute payroll.
+
 ## NEAR testnet deployment
 
 | Contract | Account | Reproducible NEAR code hash |
@@ -77,6 +91,13 @@ duties. The token's canonical identity is
 `near:testnet:nep141:ctusd.olymight.testnet`; 10,000 ctUSD were minted and a
 1 ctUSD registration/transfer smoke test succeeded. ctUSD has no monetary value
 and is not USDC or a NEAR Intents asset.
+
+A second, deliberately minimal transfer of one atomic ctUSD unit was finalized
+in testnet transaction
+[`4J4xcE7pCYZGMy29zBGUVehpnDQyi6Ft7KxrXXKZ5dWn`](https://explorer.testnet.near.org/transactions/4J4xcE7pCYZGMy29zBGUVehpnDQyi6Ft7KxrXXKZ5dWn).
+Coffer independently verified its exact action, receipts and NEP-297 event and
+stored immutable evidence. This is direct-adapter proof, not a completed
+browser payroll payout.
 
 Deployment transactions and byte-for-byte artifact verification are recorded
 in [`contracts/near-policy/ARTIFACTS.md`](contracts/near-policy/ARTIFACTS.md),
@@ -124,4 +145,3 @@ Supported scenarios are `success`, `refund`, `unknown`, `partial_deposit`, `expi
 Research findings, provider assumptions, and architecture decisions are in [`docs/research-onboarding.md`](docs/research-onboarding.md), [`docs/provider-matrix.md`](docs/provider-matrix.md), and [`docs/adr/0001-local-foundation.md`](docs/adr/0001-local-foundation.md).
 
 The selected delivery sequence and milestone gates are documented in [`docs/implementation-plan.md`](docs/implementation-plan.md). Contract-first scope and its non-custodial boundary are recorded in [`docs/adr/0002-contract-first-delivery.md`](docs/adr/0002-contract-first-delivery.md). Direct NEAR testnet settlement and the separate valueless NEP-141 test asset are recorded in [`docs/adr/0003-testnet-payment-fallback.md`](docs/adr/0003-testnet-payment-fallback.md) and [`docs/adr/0004-test-token.md`](docs/adr/0004-test-token.md).
-# coffer

@@ -860,7 +860,7 @@ Root `.env.example` companion covers local development, intentionally filled wit
 | `REDIS_URL` | Redis queue | local container |
 | `SESSION_SECRET` | session signing | generated secret, never example literal in production |
 | `ENCRYPTION_KEY_BASE64` | local envelope encrypt test key | empty until locally generated; P2 KMS instead |
-| `NEAR_NETWORK`, `NEAR_RPC_URL` | native chain access | `testnet`, `https://rpc.testnet.near.org` |
+| `NEAR_NETWORK`, `NEAR_RPC_URL` | native chain access | `testnet`, `https://test.rpc.fastnear.com`; recheck the current official provider table |
 | `SETTLEMENT_MODE` | provider selection | `mock` |
 | `LIVE_TRANSFERS_ENABLED` | hard live transfer kill switch | `false` |
 | `NEAR_INTENTS_API_URL`, `NEAR_INTENTS_JWT` | 1Click adapter | documented endpoint, empty JWT until configured |
