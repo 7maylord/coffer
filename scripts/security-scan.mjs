@@ -45,7 +45,11 @@ async function collectFiles(directory) {
   const nested = await Promise.all(
     entries.map(async (entry) => {
       if (entry.isDirectory()) {
-        if (ignoredDirectories.has(entry.name)) return [];
+        if (
+          ignoredDirectories.has(entry.name) ||
+          entry.name.startsWith('.next-')
+        )
+          return [];
         return collectFiles(join(directory, entry.name));
       }
       if (

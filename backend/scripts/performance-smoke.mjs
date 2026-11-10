@@ -36,6 +36,9 @@ const child = spawn(process.execPath, [entrypoint], {
     NEAR_INTENTS_WET_QUOTES_ENABLED: 'false',
     FEATURE_AGENT_EXECUTION: 'false',
     FEATURE_PRIVATE_AI: 'false',
+    FEATURE_PAYROLL_BATCH_PAYOUT: 'false',
+    AI_CFO_PROVIDER: 'mock',
+    NEAR_AI_CFO_ENABLED: 'false',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

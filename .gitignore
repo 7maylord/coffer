@@ -3,6 +3,8 @@
 !.env.example
 node_modules/
 .next/
+.next-e2e/
+.next-*/
 dist/
 coverage/
 playwright-report/
