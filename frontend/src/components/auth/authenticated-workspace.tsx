@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type PropsWithChildren } from "react";
+import { useEffect, useMemo, useState, type PropsWithChildren } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -8,6 +8,7 @@ import { Workspace } from "@/components/coffer/workspace";
 import { Icon, Mark } from "@/components/coffer/icon";
 import { pages, type PageId } from "@/lib/demo";
 import { canAccessPage } from "@/lib/workspace-access";
+import { invitationToken } from "@/lib/invitation";
 
 function AuthFrame({ children }: PropsWithChildren) {
   return (
@@ -156,9 +157,78 @@ function OrganizationSetup() {
   );
 }
 
+function InvitationAcceptance({
+  token,
+  clear,
+}: {
+  token: string;
+  clear: () => void;
+}) {
+  const { acceptInvitation, error, logout, session } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const accept = async () => {
+    setBusy(true);
+    setFailure("");
+    try {
+      await acceptInvitation(token);
+      clear();
+    } catch {
+      setFailure(
+        "This invitation could not be accepted. It may have expired, already been used, or belong to another NEAR account.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthFrame>
+      <span className="eyebrow">WORKSPACE INVITATION</span>
+      <h1>Join your team.</h1>
+      <p>
+        Signed in as <strong>{session?.wallets[0]?.accountId}</strong>. The
+        invitation will only work for the NEAR account selected by its owner.
+      </p>
+      {(failure || error) && (
+        <p className="form-alert" role="alert">
+          {failure || error}
+        </p>
+      )}
+      <div className="auth-actions">
+        <button className="button dark" disabled={busy} onClick={accept}>
+          {busy ? "Joining workspace…" : "Accept invitation"}
+        </button>
+        <button className="button light" disabled={busy} onClick={clear}>
+          Not now
+        </button>
+      </div>
+      <button className="text-link" onClick={() => void logout()}>
+        Sign in with another account
+      </button>
+    </AuthFrame>
+  );
+}
+
 export function AuthenticatedWorkspace({ children }: PropsWithChildren) {
   const { status, session, currentOrganization, logout } = useAuth();
   const pathname = usePathname();
+  const [invite, setInvite] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setInvite(invitationToken(window.location.hash) ?? ""),
+      0,
+    );
+    return () => window.clearTimeout(timer);
+  }, []);
+  const clearInvite = () => {
+    window.history.replaceState(
+      null,
+      "",
+      `${location.pathname}${location.search}`,
+    );
+    setInvite("");
+  };
   const page = pages.find((candidate) => pathname === `/${candidate.id}`);
   const visiblePages = useMemo(
     () =>
@@ -181,6 +251,8 @@ export function AuthenticatedWorkspace({ children }: PropsWithChildren) {
       </AuthFrame>
     );
   if (status !== "authenticated" || !session) return <SignIn />;
+  if (invite)
+    return <InvitationAcceptance token={invite} clear={clearInvite} />;
   if (!currentOrganization) return <OrganizationSetup />;
   if (page && !canAccessPage(currentOrganization.role, page.id))
     return (

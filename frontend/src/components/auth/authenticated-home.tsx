@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
+import {
+  ApiError,
+  cofferApi,
+  type OrganizationInvite,
+  type OrganizationMember,
+} from "@/lib/coffer-api";
+import { invitationUrl } from "@/lib/invitation";
 
 export function AuthenticatedOverview() {
   const { currentOrganization, session } = useAuth();
@@ -79,7 +87,70 @@ export function AuthenticatedOverview() {
 
 export function AuthenticatedSettings() {
   const { currentOrganization, session } = useAuth();
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [accountId, setAccountId] = useState("");
+  const [invite, setInvite] = useState<OrganizationInvite | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const organizationId = currentOrganization?.id;
+  const loadMembers = useCallback(async () => {
+    if (!organizationId) return;
+    try {
+      setMembers(await cofferApi.organizationMembers(organizationId));
+    } catch {
+      setMessage("Coffer could not load workspace members.");
+    }
+  }, [organizationId]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadMembers(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadMembers]);
+
   if (!currentOrganization || !session) return null;
+
+  const createInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setInvite(null);
+    setMessage("");
+    try {
+      setInvite(
+        await cofferApi.inviteEmployee(
+          currentOrganization.id,
+          accountId.trim().toLowerCase(),
+        ),
+      );
+      setAccountId("");
+    } catch (caught) {
+      setMessage(
+        caught instanceof ApiError && caught.code === "FORBIDDEN"
+          ? "Only the workspace owner can invite employees."
+          : "Coffer could not create this invitation. Check the account ID and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (member: OrganizationMember) => {
+    if (!window.confirm(`Remove ${member.displayName} from this workspace?`))
+      return;
+    setMessage("");
+    try {
+      await cofferApi.revokeOrganizationMember(
+        currentOrganization.id,
+        member.userId,
+      );
+      await loadMembers();
+    } catch {
+      setMessage("Coffer could not remove that member.");
+    }
+  };
+
+  const link =
+    invite && typeof window !== "undefined"
+      ? invitationUrl(window.location.origin, invite.token)
+      : "";
 
   return (
     <>
@@ -113,6 +184,81 @@ export function AuthenticatedSettings() {
           Sample workspace preferences and reset controls are kept separate from
           authenticated settings.
         </p>
+      </section>
+      <section className="panel settings-panel member-panel">
+        <span className="eyebrow">TEAM ACCESS</span>
+        <h2>Invite an employee</h2>
+        <p>
+          Enter the employee&apos;s exact NEAR account. The single-use link
+          expires after 24 hours and cannot be accepted by another wallet.
+        </p>
+        <form
+          className="form-stack"
+          onSubmit={(event) => void createInvite(event)}
+        >
+          <label>
+            Employee NEAR account
+            <input
+              required
+              minLength={2}
+              maxLength={64}
+              pattern="[a-z0-9]+(?:[._-][a-z0-9]+)*"
+              placeholder="employee.testnet"
+              autoComplete="off"
+              value={accountId}
+              onChange={(event) => setAccountId(event.target.value)}
+            />
+          </label>
+          <button className="button dark" disabled={busy}>
+            {busy ? "Creating invitation…" : "Create invitation"}
+          </button>
+        </form>
+        {message && (
+          <p className="form-alert" role="alert">
+            {message}
+          </p>
+        )}
+        {invite && (
+          <div className="invite-result" aria-live="polite">
+            <strong>Invitation ready</strong>
+            <p>Send this link only to {invite.targetNearAccountId}.</p>
+            <input
+              readOnly
+              value={link}
+              aria-label="Employee invitation link"
+            />
+            <button
+              className="button light"
+              type="button"
+              onClick={() => void navigator.clipboard.writeText(link)}
+            >
+              Copy invitation link
+            </button>
+            <small>Expires {new Date(invite.expiresAt).toLocaleString()}</small>
+          </div>
+        )}
+        <div className="member-list">
+          <h3>Workspace members</h3>
+          {members.map((member) => (
+            <div className="member-row" key={member.userId}>
+              <div>
+                <strong>{member.displayName}</strong>
+                <small>
+                  {member.wallets[0]?.accountId ?? "No wallet"} ·{" "}
+                  {member.role.replaceAll("_", " ")}
+                </small>
+              </div>
+              {member.role !== "OWNER" && (
+                <button
+                  className="text-link"
+                  onClick={() => void revoke(member)}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
     </>
   );

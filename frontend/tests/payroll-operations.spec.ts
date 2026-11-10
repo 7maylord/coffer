@@ -239,6 +239,65 @@ test("finance reviews exact encrypted payroll evidence and approves its manifest
   expect(page.url()).not.toContain("1000000");
 });
 
+test("finance builds a strict synthetic payroll batch one employee at a time", async ({
+  page,
+}) => {
+  await authenticated(page, "FINANCE_ADMIN");
+  let imported = false;
+  let submittedCsv = "";
+  await page.route(`**/api/coffer/v1/orgs/${orgId}/members`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          userId,
+          displayName: "Synthetic Person",
+          role: "EMPLOYEE",
+          wallets: [{ network: "testnet", accountId: "employee.testnet" }],
+        },
+      ],
+    }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/imports`,
+    async (route) => {
+      const input = route.request().postDataJSON() as { csv: string };
+      submittedCsv = input.csv;
+      imported = true;
+      await route.fulfill({ status: 201, json: summary() });
+    },
+  );
+  await page.route(`**/api/coffer/v1/orgs/${orgId}/payroll/batches`, (route) =>
+    route.fulfill({ json: imported ? [summary()] : [] }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}`,
+    (route) => route.fulfill({ json: batch() }),
+  );
+
+  await page.goto("/payroll");
+  await page.getByRole("button", { name: "Add employees" }).click();
+  const dialog = page.getByRole("dialog", { name: "Build payroll manually" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Reference").fill("SYNTHETIC-NOV");
+  await dialog.getByLabel("Employee member").selectOption(userId);
+  await dialog.getByLabel("Employee code").fill("EMP-001");
+  await dialog.getByLabel("Address · synthetic").fill("12 Example Road, Lagos");
+  await dialog.getByLabel("Gross amount · atomic").fill("1000000");
+  await dialog.getByRole("button", { name: "Add employee" }).click();
+  await expect(dialog.getByText("EMP-001")).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Encrypt and import 1 employee" })
+    .click();
+
+  await expect(dialog).toBeHidden();
+  expect(submittedCsv).toBe(
+    [
+      "employee_code,user_id,legal_name,address,payout_account,gross_amount_atomic",
+      `EMP-001,${userId},Synthetic Person,"12 Example Road, Lagos",employee.testnet,1000000`,
+    ].join("\n"),
+  );
+});
+
 test("employee payroll uses only the self-scoped payslip collection", async ({
   page,
 }) => {
@@ -277,6 +336,69 @@ test("employee payroll uses only the self-scoped payslip collection", async ({
   ).toBeVisible();
   await expect(page.getByText("employee.testnet")).toBeVisible();
   expect(organizationPayrollCalled).toBe(false);
+});
+
+test("finance prepares an approved payroll for verified wallet signing", async ({
+  page,
+}) => {
+  await authenticated(page, "FINANCE_ADMIN");
+  const approved = {
+    ...summary("APPROVED"),
+    assetId: "near:testnet:native",
+  };
+  await page.route(`**/api/coffer/v1/orgs/${orgId}/payroll/batches`, (route) =>
+    route.fulfill({ json: [approved] }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}`,
+    (route) => route.fulfill({ json: { ...batch(), ...approved } }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}/payouts`,
+    async (route) => {
+      expect(route.request().headers()["idempotency-key"]).toBe(
+        `payroll:${batchId}:v2`,
+      );
+      expect(route.request().postDataJSON()).toEqual({
+        signerAccountId: "owner.testnet",
+      });
+      await route.fulfill({
+        json: {
+          id: paymentId,
+          batchId,
+          status: "PREPARED",
+          signerAccountId: "owner.testnet",
+          approvedManifestDigest: digest,
+          settledAt: null,
+          items: [
+            {
+              id: actionId,
+              payrollLineId: lineId,
+              status: "PREPARED",
+              transactionHash: null,
+              evidenceDigest: null,
+              verifiedAt: null,
+              transaction: {
+                network: "testnet",
+                signerAccountId: "owner.testnet",
+                receiverId: "employee.testnet",
+                actions: [{ type: "Transfer", amountAtomic: "1000000" }],
+              },
+            },
+          ],
+        },
+      });
+    },
+  );
+
+  await page.goto("/payroll");
+  await page.getByRole("button", { name: "Prepare wallet payouts" }).click();
+  await expect(
+    page.getByRole("region", { name: "Payroll payout verification" }),
+  ).toContainText("EMP-001 · PREPARED");
+  await expect(
+    page.getByRole("button", { name: "Sign and verify payout" }),
+  ).toBeVisible();
 });
 
 test("finance queues a reconciliation recheck without changing unknown status", async ({

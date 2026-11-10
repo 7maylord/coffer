@@ -3,18 +3,35 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
+import { Modal } from "@/components/coffer/workspace";
 import {
   ApiError,
   cofferApi,
+  type OrganizationMember,
   type PayrollAnalysis,
   type PayrollBatch,
+  type PayrollPayoutRun,
   type PayrollSummary,
   type Payslip,
 } from "@/lib/coffer-api";
+import { manualPayrollCsv, type ManualPayrollLine } from "@/lib/payroll-manual";
 import { canManagePayroll } from "@/lib/workspace-access";
 
 const csvHeader =
   "employee_code,user_id,legal_name,address,payout_account,gross_amount_atomic";
+const emptyManualLine: ManualPayrollLine = {
+  employeeCode: "",
+  userId: "",
+  legalName: "",
+  address: "",
+  payoutAccount: "",
+  grossAmountAtomic: "",
+};
+const payrollAssets = [
+  { id: "mock:near:usdc", label: "Mock USDC · NEAR-like" },
+  { id: "mock:base:usdc", label: "Mock USDC · Base-like" },
+  { id: "near:testnet:native", label: "Native testnet NEAR · evidence only" },
+] as const;
 
 function message(error: unknown): string {
   if (error instanceof ApiError) {
@@ -67,13 +84,21 @@ export function AuthenticatedPayroll() {
 }
 
 function FinancePayroll() {
-  const { currentOrganization } = useAuth();
+  const { currentOrganization, session, signPayrollPayout } = useAuth();
   const organizationId = currentOrganization?.id;
   const [batches, setBatches] = useState<PayrollSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<PayrollBatch | null>(null);
   const [analysis, setAnalysis] = useState<PayrollAnalysis | null>(null);
+  const [payout, setPayout] = useState<PayrollPayoutRun | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [employees, setEmployees] = useState<OrganizationMember[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [manualLines, setManualLines] = useState<ManualPayrollLine[]>([]);
+  const [manualLine, setManualLine] =
+    useState<ManualPayrollLine>(emptyManualLine);
+  const [manualEntryError, setManualEntryError] = useState("");
   const [reference, setReference] = useState("");
   const [assetId, setAssetId] = useState("mock:near:usdc");
   const [perEmployeeCapAtomic, setPerEmployeeCapAtomic] = useState("100000000");
@@ -135,6 +160,7 @@ function FinancePayroll() {
     if (!organizationId) return;
     setSelectedId(id);
     setAnalysis(null);
+    setPayout(null);
     setError("");
     try {
       setSelected(await cofferApi.payrollBatch(organizationId, id));
@@ -143,8 +169,11 @@ function FinancePayroll() {
     }
   };
 
-  const importBatch = async (event: FormEvent) => {
-    event.preventDefault();
+  const createBatch = async (
+    csvPayload: string,
+    close: () => void,
+    onError: (value: string) => void,
+  ) => {
     if (!organizationId) return;
     setBusy(true);
     setError("");
@@ -155,16 +184,82 @@ function FinancePayroll() {
         synthetic: true,
         perEmployeeCapAtomic,
         batchCapAtomic,
-        csv,
+        csv: csvPayload,
       });
-      setShowImport(false);
+      close();
       setAnalysis(null);
+      setPayout(null);
       await load(created.id);
     } catch (cause) {
-      setError(message(cause));
+      onError(message(cause));
     } finally {
       setBusy(false);
     }
+  };
+
+  const importBatch = async (event: FormEvent) => {
+    event.preventDefault();
+    await createBatch(csv, () => setShowImport(false), setError);
+  };
+
+  const openManual = async () => {
+    if (!organizationId) return;
+    setShowManual(true);
+    setEmployeesLoading(true);
+    setManualEntryError("");
+    try {
+      setEmployees(await cofferApi.organizationMembers(organizationId));
+    } catch (cause) {
+      setManualEntryError(message(cause));
+    } finally {
+      setEmployeesLoading(false);
+    }
+  };
+
+  const selectEmployee = (userId: string) => {
+    const member = employees.find((candidate) => candidate.userId === userId);
+    setManualLine((current) => ({
+      ...current,
+      userId,
+      legalName: member?.displayName ?? "",
+      payoutAccount:
+        member?.wallets.find(({ network }) => network === "testnet")
+          ?.accountId ?? "",
+    }));
+  };
+
+  const addManualLine = (event: FormEvent) => {
+    event.preventDefault();
+    if (
+      manualLines.some(
+        (line) =>
+          line.userId === manualLine.userId ||
+          line.employeeCode === manualLine.employeeCode,
+      )
+    ) {
+      setManualEntryError(
+        "Each employee and employee code can appear only once in a batch.",
+      );
+      return;
+    }
+    setManualLines((current) => [...current, manualLine]);
+    setManualLine(emptyManualLine);
+    setManualEntryError("");
+  };
+
+  const importManualBatch = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!manualLines.length) return;
+    await createBatch(
+      manualPayrollCsv(manualLines),
+      () => {
+        setShowManual(false);
+        setManualLines([]);
+        setManualLine(emptyManualLine);
+        setManualEntryError("");
+      },
+      setManualEntryError,
+    );
   };
 
   const analyze = async (mode: "deterministic" | "private-ai") => {
@@ -202,6 +297,59 @@ function FinancePayroll() {
     }
   };
 
+  const preparePayout = async () => {
+    if (!organizationId || !selected) return;
+    const signerAccountId = session?.wallets.find(
+      ({ network }) => network === "testnet",
+    )?.accountId;
+    if (!signerAccountId) {
+      setError("Connect and verify a NEAR wallet before preparing payroll.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setPayout(
+        await cofferApi.preparePayrollPayout(
+          organizationId,
+          selected.id,
+          signerAccountId,
+          `payroll:${selected.id}:v${selected.version}`,
+        ),
+      );
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pay = async (itemId: string) => {
+    if (!organizationId || !selected || !payout) return;
+    const item = payout.items.find(({ id }) => id === itemId);
+    if (!item?.transaction) return;
+    setBusy(true);
+    setError("");
+    try {
+      const transactionHash = await signPayrollPayout(item.transaction);
+      setPayout(
+        await cofferApi.reconcilePayrollPayout(
+          organizationId,
+          selected.id,
+          item.id,
+          transactionHash,
+        ),
+      );
+      await load(selected.id);
+    } catch (cause) {
+      setError(message(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const eligibleEmployees = employees.filter(({ role }) => role === "EMPLOYEE");
+
   return (
     <>
       <header className="page-heading">
@@ -223,8 +371,11 @@ function FinancePayroll() {
           >
             <Icon name="refresh" size={16} /> Refresh
           </button>
-          <button className="button dark" onClick={() => setShowImport(true)}>
-            <Icon name="plus" size={16} /> Import synthetic CSV
+          <button className="button" onClick={() => setShowImport(true)}>
+            Import CSV
+          </button>
+          <button className="button dark" onClick={() => void openManual()}>
+            <Icon name="plus" size={16} /> Add employees
           </button>
         </div>
       </header>
@@ -363,7 +514,59 @@ function FinancePayroll() {
                 >
                   Approve exact manifest
                 </button>
+                <button
+                  className="button dark"
+                  disabled={
+                    busy ||
+                    !["APPROVED", "PROCESSING", "SETTLED"].includes(
+                      selected.status,
+                    ) ||
+                    !selected.assetId.startsWith("near:testnet:")
+                  }
+                  onClick={() => void preparePayout()}
+                >
+                  Prepare wallet payouts
+                </button>
               </div>
+              {payout && (
+                <section
+                  className="payroll-analysis"
+                  aria-label="Payroll payout verification"
+                >
+                  <div>
+                    <strong>{payout.status}</strong>
+                    <span>{payout.signerAccountId}</span>
+                  </div>
+                  <p>
+                    Each wallet approval is reconciled against the exact
+                    approved employee transfer before settlement.
+                  </p>
+                  {payout.items.map((item) => (
+                    <div key={item.id} className="button-row">
+                      <span>
+                        {selected.lines.find(
+                          ({ id }) => id === item.payrollLineId,
+                        )?.employeeCode ?? "Payroll line"}{" "}
+                        · {item.status}
+                      </span>
+                      {item.transaction && (
+                        <button
+                          className="button"
+                          disabled={busy}
+                          onClick={() => void pay(item.id)}
+                        >
+                          Sign and verify payout
+                        </button>
+                      )}
+                      {item.transactionHash && (
+                        <small title={item.transactionHash}>
+                          {short(item.transactionHash)}
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
               {analysis && (
                 <section
                   className="payroll-analysis"
@@ -423,11 +626,11 @@ function FinancePayroll() {
                 value={assetId}
                 onChange={(event) => setAssetId(event.target.value)}
               >
-                <option value="mock:near:usdc">Mock USDC · NEAR-like</option>
-                <option value="mock:base:usdc">Mock USDC · Base-like</option>
-                <option value="near:testnet:native">
-                  Native testnet NEAR · evidence only
-                </option>
+                {payrollAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -475,6 +678,235 @@ function FinancePayroll() {
             </div>
           </div>
         </form>
+      )}
+
+      {showManual && (
+        <Modal
+          title="Build payroll manually"
+          close={() => setShowManual(false)}
+          wide
+        >
+          <p className="modal-description">
+            Add active employee members one at a time. Coffer submits the same
+            strict, encrypted synthetic batch used by CSV import.
+          </p>
+          <form
+            id="manual-payroll-batch"
+            className="payroll-import-fields"
+            onSubmit={importManualBatch}
+          >
+            <label>
+              Reference
+              <input
+                required
+                maxLength={64}
+                value={reference}
+                onChange={(event) => setReference(event.target.value)}
+              />
+            </label>
+            <label>
+              Canonical asset
+              <select
+                value={assetId}
+                onChange={(event) => setAssetId(event.target.value)}
+              >
+                {payrollAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Per employee cap · atomic
+              <input
+                required
+                inputMode="numeric"
+                pattern="[1-9][0-9]{0,77}"
+                value={perEmployeeCapAtomic}
+                onChange={(event) =>
+                  setPerEmployeeCapAtomic(event.target.value)
+                }
+              />
+            </label>
+            <label>
+              Batch cap · atomic
+              <input
+                required
+                inputMode="numeric"
+                pattern="[1-9][0-9]{0,77}"
+                value={batchCapAtomic}
+                onChange={(event) => setBatchCapAtomic(event.target.value)}
+              />
+            </label>
+          </form>
+
+          <form
+            className="payroll-import-fields payroll-manual-entry"
+            onSubmit={addManualLine}
+          >
+            <label className="payroll-wide-field">
+              Employee member
+              <select
+                required
+                value={manualLine.userId}
+                disabled={employeesLoading || !eligibleEmployees.length}
+                onChange={(event) => selectEmployee(event.target.value)}
+              >
+                <option value="">
+                  {employeesLoading
+                    ? "Loading employees…"
+                    : eligibleEmployees.length
+                      ? "Select an employee"
+                      : "No active employee members"}
+                </option>
+                {eligibleEmployees.map((employee) => (
+                  <option key={employee.userId} value={employee.userId}>
+                    {employee.displayName}
+                    {employee.wallets[0]
+                      ? ` · ${employee.wallets[0].accountId}`
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Employee code
+              <input
+                required
+                maxLength={32}
+                pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,31}"
+                value={manualLine.employeeCode}
+                onChange={(event) =>
+                  setManualLine((current) => ({
+                    ...current,
+                    employeeCode: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Legal name · synthetic
+              <input
+                required
+                maxLength={120}
+                value={manualLine.legalName}
+                onChange={(event) =>
+                  setManualLine((current) => ({
+                    ...current,
+                    legalName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Address · synthetic
+              <input
+                required
+                maxLength={300}
+                value={manualLine.address}
+                onChange={(event) =>
+                  setManualLine((current) => ({
+                    ...current,
+                    address: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Payout account
+              <input
+                required
+                maxLength={200}
+                value={manualLine.payoutAccount}
+                onChange={(event) =>
+                  setManualLine((current) => ({
+                    ...current,
+                    payoutAccount: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Gross amount · atomic
+              <input
+                required
+                inputMode="numeric"
+                pattern="[1-9][0-9]{0,77}"
+                value={manualLine.grossAmountAtomic}
+                onChange={(event) =>
+                  setManualLine((current) => ({
+                    ...current,
+                    grossAmountAtomic: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <div className="payroll-actions payroll-wide-field">
+              <button
+                className="button"
+                disabled={employeesLoading || !eligibleEmployees.length}
+              >
+                Add employee
+              </button>
+            </div>
+          </form>
+
+          {!eligibleEmployees.length && !employeesLoading && (
+            <p className="form-alert" role="status">
+              Invite a wallet as an EMPLOYEE and have it accept the invitation
+              before building payroll.
+            </p>
+          )}
+          {manualEntryError && (
+            <p className="form-alert" role="alert">
+              {manualEntryError}
+            </p>
+          )}
+          <div className="payroll-manual-lines" aria-live="polite">
+            {manualLines.map((line) => (
+              <div key={line.userId}>
+                <span>
+                  <strong>{line.employeeCode}</strong>
+                  <small>{line.legalName}</small>
+                </span>
+                <span>
+                  <strong>{line.grossAmountAtomic}</strong>
+                  <small>{assetId} atomic</small>
+                </span>
+                <button
+                  type="button"
+                  className="text-link"
+                  onClick={() =>
+                    setManualLines((current) =>
+                      current.filter(({ userId }) => userId !== line.userId),
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={() => setShowManual(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="manual-payroll-batch"
+              className="button dark"
+              disabled={busy || !manualLines.length}
+            >
+              Encrypt and import {manualLines.length || ""} employee
+              {manualLines.length === 1 ? "" : "s"}
+            </button>
+          </div>
+        </Modal>
       )}
     </>
   );

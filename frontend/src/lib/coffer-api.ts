@@ -103,6 +103,37 @@ const organizationSchema = z
   })
   .strict();
 
+const organizationMemberSchema = z
+  .object({
+    userId: z.uuid(),
+    displayName: z.string().min(1),
+    role: roleSchema,
+    wallets: z.array(
+      z
+        .object({
+          network: z.string().min(1),
+          accountId: z.string().min(2),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+const organizationInviteSchema = z
+  .object({
+    inviteId: z.uuid(),
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    network: z.string().min(1),
+    targetNearAccountId: z.string().min(2),
+    role: z.literal("employee"),
+    expiresAt: z.iso.datetime(),
+  })
+  .strict();
+
+const acceptedInviteSchema = z
+  .object({ organizationId: z.uuid(), role: roleSchema })
+  .strict();
+
 const verifyResultSchema = z
   .object({ userId: z.string().min(1), expiresAt: z.iso.datetime() })
   .strict();
@@ -850,6 +881,66 @@ const payrollAnalysisSchema = z
     confidentiality: z.string(),
   })
   .strict();
+const payrollPayoutTransactionSchema = z
+  .object({
+    network: z.literal("testnet"),
+    signerAccountId: z.string().min(2),
+    receiverId: z.string().min(2),
+    actions: z
+      .array(
+        z.union([
+          z
+            .object({
+              type: z.literal("Transfer"),
+              amountAtomic: z.string().regex(/^[1-9][0-9]*$/),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal("FunctionCall"),
+              methodName: z.literal("ft_transfer"),
+              args: z
+                .object({
+                  receiver_id: z.string().min(2),
+                  amount: z.string().regex(/^[1-9][0-9]*$/),
+                  memo: z.string().max(256).optional(),
+                })
+                .strict(),
+              gas: z.literal("30000000000000"),
+              deposit: z.literal("1"),
+            })
+            .strict(),
+        ]),
+      )
+      .length(1),
+  })
+  .strict();
+const payrollPayoutRunSchema = z
+  .object({
+    id: z.uuid(),
+    batchId: z.uuid(),
+    status: z.enum(["PREPARED", "PROCESSING", "SETTLED"]),
+    signerAccountId: z.string().min(2),
+    approvedManifestDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    settledAt: z.iso.datetime().nullable(),
+    items: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          payrollLineId: z.uuid(),
+          status: z.enum(["PREPARED", "VERIFIED"]),
+          transactionHash: z.string().nullable(),
+          evidenceDigest: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/)
+            .nullable(),
+          verifiedAt: z.iso.datetime().nullable(),
+          transaction: payrollPayoutTransactionSchema.nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
 const reconciliationCaseSchema = z
   .object({
     id: z.uuid(),
@@ -946,9 +1037,15 @@ const recheckSchema = z
   .strict();
 
 export type PayrollSummary = z.infer<typeof payrollSummarySchema>;
+export type OrganizationMember = z.infer<typeof organizationMemberSchema>;
+export type OrganizationInvite = z.infer<typeof organizationInviteSchema>;
 export type PayrollBatch = z.infer<typeof payrollBatchSchema>;
 export type Payslip = z.infer<typeof payslipSchema>;
 export type PayrollAnalysis = z.infer<typeof payrollAnalysisSchema>;
+export type PayrollPayoutTransaction = z.infer<
+  typeof payrollPayoutTransactionSchema
+>;
+export type PayrollPayoutRun = z.infer<typeof payrollPayoutRunSchema>;
 export type OperationsDashboard = z.infer<typeof operationsDashboardSchema>;
 export type OperationsMetrics = z.infer<typeof operationsMetricsSchema>;
 export type AuditPage = z.infer<typeof auditPageSchema>;
@@ -1053,6 +1150,35 @@ export const cofferApi = {
   session: () => request("/v1/auth/session", sessionSchema),
   organizations: () =>
     request("/v1/organizations", z.array(organizationSchema)),
+  organizationMembers: (organizationId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/members`,
+      z.array(organizationMemberSchema),
+    ),
+  inviteEmployee: (organizationId: string, targetNearAccountId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/invites`,
+      organizationInviteSchema,
+      {
+        method: "POST",
+        body: JSON.stringify({ targetNearAccountId, role: "employee" }),
+      },
+      true,
+    ),
+  acceptInvitation: (token: string) =>
+    request(
+      "/v1/invites/accept",
+      acceptedInviteSchema,
+      { method: "POST", body: JSON.stringify({ token }) },
+      true,
+    ),
+  revokeOrganizationMember: (organizationId: string, userId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(userId)}`,
+      revokedSchema,
+      { method: "DELETE" },
+      true,
+    ),
   createOrganization: (input: CreateOrganizationInput) =>
     request(
       "/v1/organizations",
@@ -1436,6 +1562,37 @@ export const cofferApi = {
       {
         method: "POST",
         body: JSON.stringify({ expectedManifestDigest, expectedVersion }),
+      },
+      true,
+    ),
+  preparePayrollPayout: (
+    organizationId: string,
+    batchId: string,
+    signerAccountId: string,
+    idempotencyKey: string,
+  ) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/payroll/batches/${encodeURIComponent(batchId)}/payouts`,
+      payrollPayoutRunSchema,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ signerAccountId }),
+      },
+      true,
+    ),
+  reconcilePayrollPayout: (
+    organizationId: string,
+    batchId: string,
+    itemId: string,
+    transactionHash: string,
+  ) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/payroll/batches/${encodeURIComponent(batchId)}/payouts/items/${encodeURIComponent(itemId)}/reconcile`,
+      payrollPayoutRunSchema,
+      {
+        method: "POST",
+        body: JSON.stringify({ transactionHash }),
       },
       true,
     ),

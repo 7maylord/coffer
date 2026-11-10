@@ -30,9 +30,11 @@ import {
   type CreateOrganizationInput,
   type IntentsDepositTransaction,
   type Organization,
+  type PayrollPayoutTransaction,
   type SessionPrincipal,
 } from "@/lib/coffer-api";
 import { intentsDepositWalletRequest } from "@/lib/intents-wallet";
+import { payrollPayoutWalletRequest } from "@/lib/payroll-wallet";
 
 type AuthStatus =
   | "loading"
@@ -62,9 +64,11 @@ type AuthContextValue = {
   signInWithWallet: () => Promise<void>;
   signInWithPrivy: () => Promise<void>;
   createOrganization: (input: CreateOrganizationInput) => Promise<void>;
+  acceptInvitation: (token: string) => Promise<void>;
   signIntentsDeposit: (
     transaction: IntentsDepositTransaction,
   ) => Promise<string>;
+  signPayrollPayout: (transaction: PayrollPayoutTransaction) => Promise<string>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -311,23 +315,34 @@ function AuthProviderInner({
     [refresh],
   );
 
-  const signIntentsDeposit = useCallback(
-    async (transaction: IntentsDepositTransaction) => {
+  const acceptInvitation = useCallback(
+    async (token: string) => {
+      setError("");
+      try {
+        const accepted = await cofferApi.acceptInvitation(token);
+        localStorage.setItem("coffer_organization_id", accepted.organizationId);
+        await refresh();
+      } catch (caught) {
+        setError(errorMessage(caught));
+        throw caught;
+      }
+    },
+    [refresh],
+  );
+
+  const signVerifiedTransaction = useCallback(
+    async (
+      signerAccountId: string,
+      request: ReturnType<typeof intentsDepositWalletRequest>,
+    ) => {
       if (status !== "authenticated" || !session) {
         throw new Error("Coffer rejected an unsafe testnet deposit request.");
       }
-      const request = intentsDepositWalletRequest(
-        transaction,
-        session.wallets
-          .filter((wallet) => wallet.network === "testnet")
-          .map((wallet) => wallet.accountId),
-      );
-
       const nearConnector = await connector();
       const connected = await nearConnector.getConnectedWallet();
       if (
         !connected.accounts.some(
-          (account) => account.accountId === transaction.signerAccountId,
+          (account) => account.accountId === signerAccountId,
         )
       ) {
         throw new Error("Connect the verified testnet wallet before signing.");
@@ -340,6 +355,32 @@ function AuthProviderInner({
       return transactionHash;
     },
     [connector, session, status],
+  );
+
+  const verifiedTestnetAccounts = useCallback(
+    () =>
+      session?.wallets
+        .filter((wallet) => wallet.network === "testnet")
+        .map((wallet) => wallet.accountId) ?? [],
+    [session],
+  );
+
+  const signIntentsDeposit = useCallback(
+    (transaction: IntentsDepositTransaction) =>
+      signVerifiedTransaction(
+        transaction.signerAccountId,
+        intentsDepositWalletRequest(transaction, verifiedTestnetAccounts()),
+      ),
+    [signVerifiedTransaction, verifiedTestnetAccounts],
+  );
+
+  const signPayrollPayout = useCallback(
+    (transaction: PayrollPayoutTransaction) =>
+      signVerifiedTransaction(
+        transaction.signerAccountId,
+        payrollPayoutWalletRequest(transaction, verifiedTestnetAccounts()),
+      ),
+    [signVerifiedTransaction, verifiedTestnetAccounts],
   );
 
   const logout = useCallback(async () => {
@@ -390,12 +431,15 @@ function AuthProviderInner({
       signInWithWallet: () => completeWalletSignIn(),
       signInWithPrivy,
       createOrganization,
+      acceptInvitation,
       signIntentsDeposit,
+      signPayrollPayout,
       logout,
       refresh,
     }),
     [
       completeWalletSignIn,
+      acceptInvitation,
       createOrganization,
       currentOrganization,
       error,
@@ -406,6 +450,7 @@ function AuthProviderInner({
       selectOrganization,
       session,
       signIntentsDeposit,
+      signPayrollPayout,
       signInWithPrivy,
       status,
     ],

@@ -181,3 +181,116 @@ test("first wallet session creates an owner organization with CSRF", async ({
     page.getByRole("heading", { name: "North Star is ready." }),
   ).toBeVisible();
 });
+
+test("owner creates a wallet-targeted employee invitation", async ({
+  context,
+  page,
+}) => {
+  const csrf = "c".repeat(43);
+  const token = "T".repeat(43);
+  await context.addCookies([
+    {
+      name: "coffer_csrf",
+      value: csrf,
+      domain: "127.0.0.1",
+      path: "/",
+      sameSite: "Strict",
+    },
+  ]);
+  await mockAuthenticated(page);
+  await page.route("**/api/coffer/v1/orgs/org-1/members", (route) =>
+    route.fulfill({
+      status: 200,
+      json: [
+        {
+          userId: "11111111-1111-4111-8111-111111111111",
+          displayName: "jamie.testnet",
+          role: "OWNER",
+          wallets: [{ network: "testnet", accountId: "jamie.testnet" }],
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/coffer/v1/orgs/org-1/invites", async (route) => {
+    expect(route.request().headers()["x-csrf-token"]).toBe(csrf);
+    expect(await route.request().postDataJSON()).toEqual({
+      targetNearAccountId: "alex.testnet",
+      role: "employee",
+    });
+    await route.fulfill({
+      status: 201,
+      json: {
+        inviteId: "22222222-2222-4222-8222-222222222222",
+        token,
+        network: "testnet",
+        targetNearAccountId: "alex.testnet",
+        role: "employee",
+        expiresAt: "2026-11-11T12:00:00.000Z",
+      },
+    });
+  });
+
+  await page.goto("/settings");
+  await page.getByLabel("Employee NEAR account").fill("alex.testnet");
+  await page.getByRole("button", { name: "Create invitation" }).click();
+  await expect(page.getByText("Invitation ready")).toBeVisible();
+  await expect(page.getByLabel("Employee invitation link")).toHaveValue(
+    `${new URL(page.url()).origin}/overview#invite=${token}`,
+  );
+});
+
+test("the targeted employee accepts an invitation before workspace setup", async ({
+  context,
+  page,
+}) => {
+  const csrf = "d".repeat(43);
+  const token = "U".repeat(43);
+  const organizationId = "33333333-3333-4333-8333-333333333333";
+  let accepted = false;
+  await context.addCookies([
+    {
+      name: "coffer_csrf",
+      value: csrf,
+      domain: "127.0.0.1",
+      path: "/",
+      sameSite: "Strict",
+    },
+  ]);
+  await page.route("**/api/coffer/v1/auth/session", (route) =>
+    route.fulfill({
+      status: 200,
+      json: {
+        ...session("EMPLOYEE"),
+        wallets: [{ network: "testnet", accountId: "alex.testnet" }],
+        memberships: accepted ? [{ organizationId, role: "EMPLOYEE" }] : [],
+      },
+    }),
+  );
+  await page.route("**/api/coffer/v1/organizations", (route) =>
+    route.fulfill({
+      status: 200,
+      json: accepted
+        ? [{ ...organization("EMPLOYEE"), id: organizationId }]
+        : [],
+    }),
+  );
+  await page.route("**/api/coffer/v1/invites/accept", async (route) => {
+    expect(route.request().headers()["x-csrf-token"]).toBe(csrf);
+    expect(await route.request().postDataJSON()).toEqual({ token });
+    accepted = true;
+    await route.fulfill({
+      status: 201,
+      json: { organizationId, role: "EMPLOYEE" },
+    });
+  });
+
+  await page.goto(`/overview#invite=${token}`);
+  await expect(
+    page.getByRole("heading", { name: "Join your team." }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(
+    page.getByRole("heading", { name: "This page is outside your role." }),
+  ).toBeVisible();
+  await expect(page).not.toHaveURL(/#invite=/);
+});
