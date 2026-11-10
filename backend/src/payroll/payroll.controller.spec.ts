@@ -12,6 +12,7 @@ import {
 import { PayrollController, PayslipController } from './payroll.controller.js';
 import { PayrollService } from './payroll.service.js';
 import { PayrollError, type PayrollErrorCode } from './payroll.types.js';
+import { ProviderAdapterError } from '../settlement/provider-adapter.types.js';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const userId = '22222222-2222-4222-8222-222222222222';
@@ -37,6 +38,8 @@ function service() {
     auditView: vi.fn().mockResolvedValue({ id: entityId }),
     approve: vi.fn().mockResolvedValue({ id: entityId }),
     analyze: vi.fn().mockResolvedValue({ id: entityId }),
+    preparePayout: vi.fn().mockResolvedValue({ id: entityId }),
+    reconcilePayoutItem: vi.fn().mockResolvedValue({ id: entityId }),
     payslip: vi.fn().mockResolvedValue({ id: entityId }),
     payslips: vi.fn().mockResolvedValue([{ id: entityId }]),
   };
@@ -72,6 +75,20 @@ describe('PayrollController', () => {
     await controller.analyze(request, organizationId, entityId, {
       mode: 'deterministic',
     });
+    await controller.preparePayout(
+      request,
+      organizationId,
+      entityId,
+      'payroll-1',
+      { signerAccountId: 'payer.testnet' },
+    );
+    await controller.reconcilePayoutItem(
+      request,
+      organizationId,
+      entityId,
+      entityId,
+      { transactionHash: '1'.repeat(43) },
+    );
     expect(payroll.importSynthetic).toHaveBeenCalledWith(
       organizationId,
       userId,
@@ -89,6 +106,20 @@ describe('PayrollController', () => {
       entityId,
       userId,
       'deterministic',
+    );
+    expect(payroll.preparePayout).toHaveBeenCalledWith(
+      organizationId,
+      entityId,
+      userId,
+      'payer.testnet',
+      'payroll-1',
+    );
+    expect(payroll.reconcilePayoutItem).toHaveBeenCalledWith(
+      organizationId,
+      entityId,
+      entityId,
+      userId,
+      '1'.repeat(43),
     );
   });
 
@@ -124,12 +155,16 @@ describe('PayrollController', () => {
 
   it.each<[PayrollErrorCode, new (...args: never[]) => Error]>([
     ['PAYROLL_NOT_FOUND', NotFoundException],
+    ['PAYROLL_PAYOUT_NOT_FOUND', NotFoundException],
     ['PAYROLL_ACCESS_DENIED', ForbiddenException],
     ['PRIVATE_AI_DISABLED', ServiceUnavailableException],
     ['PRIVATE_AI_UNAVAILABLE', ServiceUnavailableException],
+    ['PAYROLL_PAYOUT_DISABLED', ServiceUnavailableException],
     ['PAYROLL_DUPLICATE', ConflictException],
     ['PAYROLL_MANIFEST_MISMATCH', ConflictException],
     ['PAYROLL_NOT_APPROVABLE', ConflictException],
+    ['PAYROLL_PAYOUT_NOT_READY', ConflictException],
+    ['PAYROLL_PAYOUT_CONFLICT', ConflictException],
     ['PAYROLL_INVALID_IMPORT', BadRequestException],
     ['PRIVATE_AI_UNVERIFIED', BadRequestException],
     ['PRIVATE_AI_RESPONSE_INVALID', BadRequestException],
@@ -142,6 +177,65 @@ describe('PayrollController', () => {
     await expect(
       controller.batch(principal(), organizationId, entityId),
     ).rejects.toBeInstanceOf(Expected);
+  });
+
+  it('maps payout provider failures without exposing adapter errors', async () => {
+    const payroll = service();
+    const controller = new PayrollController(
+      payroll as unknown as PayrollService,
+    );
+    payroll.reconcilePayoutItem.mockRejectedValueOnce(
+      new ProviderAdapterError('PROVIDER_UNAVAILABLE', 'fixture'),
+    );
+    await expect(
+      controller.reconcilePayoutItem(
+        principal(),
+        organizationId,
+        entityId,
+        entityId,
+        { transactionHash: '1'.repeat(43) },
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    payroll.reconcilePayoutItem.mockRejectedValueOnce(
+      new ProviderAdapterError('TRANSFER_EVIDENCE_MISMATCH', 'fixture'),
+    );
+    await expect(
+      controller.reconcilePayoutItem(
+        principal(),
+        organizationId,
+        entityId,
+        entityId,
+        { transactionHash: '1'.repeat(43) },
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects malformed payout material before calling the service', async () => {
+    const payroll = service();
+    const controller = new PayrollController(
+      payroll as unknown as PayrollService,
+    );
+    await expect(
+      controller.preparePayout(
+        principal(),
+        organizationId,
+        entityId,
+        undefined,
+        { signerAccountId: 'INVALID ACCOUNT' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      controller.reconcilePayoutItem(
+        principal(),
+        organizationId,
+        entityId,
+        entityId,
+        { transactionHash: 'not-a-hash' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(payroll.preparePayout).not.toHaveBeenCalled();
+    expect(payroll.reconcilePayoutItem).not.toHaveBeenCalled();
   });
 
   it('does not mask unexpected errors', async () => {

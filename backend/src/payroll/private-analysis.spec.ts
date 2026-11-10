@@ -1,91 +1,67 @@
-import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { parseEnvironment } from '../config/env.js';
 import { NearAiPayrollAttestationVerifier } from './private-analysis.js';
 import type { PrivateAnalysisResult } from './payroll.types.js';
 
+const deploymentDigest = 'a'.repeat(64);
+const environment = parseEnvironment({
+  NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: deploymentDigest,
+});
+
 function fixture(): PrivateAnalysisResult {
-  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
-  const rawPublicKey = publicKey
-    .export({ format: 'der', type: 'spki' })
-    .subarray(-32);
-  const request = Buffer.from('{"request":1}');
-  const response = Buffer.from('{"response":1}');
-  const model = 'fixture/model';
-  const text = `${model}:${hash(request)}:${hash(response)}`;
-  const started = new Date('2026-10-30T12:00:00.000Z');
   return {
     provider: 'near-ai-cloud',
-    model,
-    requestStartedAt: started,
-    exactRequestBody: request,
-    exactResponseBody: response,
+    model: 'fixture/model',
+    requestStartedAt: new Date('2026-10-30T12:00:00.000Z'),
+    requestBody: Buffer.from('{"request":1}'),
+    responseBody: Buffer.from('{"response":1}'),
     output: { findings: [], summary: 'fixture' },
     evidence: {
+      verificationMethod: 'nearai-inference-sdk-v0.3',
       signatureKind: 'provider_tee',
       signingAlgo: 'ed25519',
-      signingAddress: rawPublicKey.toString('hex'),
-      text,
-      signatureHex: sign(null, Buffer.from(text), privateKey).toString('hex'),
-      verifiedModelReports: [
-        {
-          signingAddress: rawPublicKey.toString('hex'),
-          signingAlgo: 'ed25519',
-          reportDigest: 'a'.repeat(64),
-          verifiedAt: '2026-10-30T11:59:00.000Z',
-          verificationMethod: 'intel-dcap+measurements-v1',
-        },
-      ],
+      signingAddress: 'b'.repeat(64),
+      modelVerifiedAt: '2026-10-30T11:59:00.000Z',
+      modelAttestationCount: 1,
+      deploymentDigests: [deploymentDigest],
     },
   };
 }
 
 describe('NearAiPayrollAttestationVerifier', () => {
-  const verifier = new NearAiPayrollAttestationVerifier();
+  const verifier = new NearAiPayrollAttestationVerifier(environment);
 
-  it('accepts exact bytes signed by exactly one preflight model report', () => {
+  it('accepts a provider-TEE receipt from an approved verified deployment', () => {
     expect(verifier.verify(fixture())).toBe(true);
   });
 
   it.each([
     [
-      'response bytes',
+      'deployment',
       (value: PrivateAnalysisResult) => {
-        value.exactResponseBody = Buffer.from('{}');
+        value.evidence!.deploymentDigests = ['c'.repeat(64)];
       },
     ],
     [
-      'signature',
+      'signer',
       (value: PrivateAnalysisResult) => {
-        value.evidence!.signatureHex = '0'.repeat(128);
+        value.evidence!.signingAddress = 'invalid';
       },
     ],
     [
-      'signature kind',
+      'attestation count',
       (value: PrivateAnalysisResult) => {
-        value.evidence!.signatureKind = 'gateway';
-      },
-    ],
-    [
-      'preflight signer',
-      (value: PrivateAnalysisResult) => {
-        value.evidence!.verifiedModelReports[0]!.signingAddress = 'b'.repeat(
-          64,
-        );
+        value.evidence!.modelAttestationCount = 2;
       },
     ],
     [
       'preflight timing',
       (value: PrivateAnalysisResult) => {
-        value.evidence!.verifiedModelReports[0]!.verifiedAt =
-          '2026-10-30T12:01:00.000Z';
+        value.evidence!.modelVerifiedAt = '2026-10-30T12:01:00.000Z';
       },
     ],
-  ])('T-PRV-07 rejects tampered %s', (_label, tamper) => {
+  ])('T-PRV-07 rejects altered %s evidence', (_label, alter) => {
     const value = fixture();
-    tamper(value);
+    alter(value);
     expect(verifier.verify(value)).toBe(false);
   });
 });
-
-function hash(value: Buffer) {
-  return createHash('sha256').update(value).digest('hex');
-}

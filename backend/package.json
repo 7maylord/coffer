@@ -7,10 +7,14 @@
   "license": "UNLICENSED",
   "type": "module",
   "packageManager": "pnpm@10.25.0",
+  "engines": {
+    "node": ">=24.22.1"
+  },
   "pnpm": {
     "overrides": {
       "deepmerge-ts": "8.0.2",
       "esbuild": "0.28.1",
+      "minimatch@>=7.0.0 <11.0.1": "11.0.1",
       "multer": "2.5.0"
     },
     "onlyBuiltDependencies": [
@@ -58,6 +62,7 @@
   },
   "dependencies": {
     "@defuse-protocol/one-click-sdk-typescript": "0.1.26",
+    "@nearai/inference-sdk": "0.3.0",
     "@nestjs/common": "12.2.0",
     "@nestjs/core": "12.2.0",
     "@nestjs/platform-express": "12.2.0",

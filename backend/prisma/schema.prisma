@@ -50,6 +50,17 @@ enum PayrollBatchStatus {
   FAILED
 }
 
+enum PayrollPayoutRunStatus {
+  PREPARED
+  PROCESSING
+  SETTLED
+}
+
+enum PayrollPayoutItemStatus {
+  PREPARED
+  VERIFIED
+}
+
 enum LedgerAccountType {
   ASSET
   LIABILITY
@@ -147,6 +158,7 @@ model User {
   ownedAgents            AgentIdentity[]         @relation("AgentOwner")
   approvedPayrollBatches PayrollBatch[]          @relation("PayrollBatchApprover")
   payrollAnalysisRuns    PayrollAnalysisRun[]    @relation("PayrollAnalysisActor")
+  createdPayrollPayouts  PayrollPayoutRun[]      @relation("PayrollPayoutCreator")
   intentsSwaps           IntentsSwap[]           @relation("IntentsSwapCreator")
 }
 
@@ -164,6 +176,8 @@ model Organization {
   idempotencyRecords       IdempotencyRecord[]
   employees                EmployeeProfile[]
   payrollBatches           PayrollBatch[]
+  payrollPayoutRuns        PayrollPayoutRun[]
+  payrollPayoutItems       PayrollPayoutItem[]
   auditEvents              AuditEvent[]
   outboxEvents             OutboxEvent[]
   inboxEvents              InboxEvent[]
@@ -524,6 +538,7 @@ model PayrollBatch {
   approvedBy             User?                @relation("PayrollBatchApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   lines                  PayrollLine[]
   analysisRuns           PayrollAnalysisRun[]
+  payoutRuns             PayrollPayoutRun[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, reference])
@@ -531,10 +546,10 @@ model PayrollBatch {
 }
 
 model PayrollLine {
-  id                   String          @id @default(uuid()) @db.Uuid
-  organizationId       String          @db.Uuid
-  batchId              String          @db.Uuid
-  employeeId           String          @db.Uuid
+  id                   String              @id @default(uuid()) @db.Uuid
+  organizationId       String              @db.Uuid
+  batchId              String              @db.Uuid
+  employeeId           String              @db.Uuid
   salaryCiphertext     Bytes
   salaryNonce          Bytes
   netCiphertext        Bytes
@@ -544,13 +559,61 @@ model PayrollLine {
   amountCommitment     String
   lineDigest           String
   encryptionKeyVersion String
-  createdAt            DateTime        @default(now())
-  batch                PayrollBatch    @relation(fields: [batchId, organizationId], references: [id, organizationId], onDelete: Cascade)
-  employee             EmployeeProfile @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdAt            DateTime            @default(now())
+  batch                PayrollBatch        @relation(fields: [batchId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  employee             EmployeeProfile     @relation(fields: [employeeId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  payoutItems          PayrollPayoutItem[]
 
   @@unique([id, organizationId])
   @@unique([batchId, employeeId])
   @@index([organizationId, employeeId, createdAt])
+}
+
+model PayrollPayoutRun {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizationId         String                 @db.Uuid
+  batchId                String                 @db.Uuid
+  createdByUserId        String                 @db.Uuid
+  status                 PayrollPayoutRunStatus @default(PREPARED)
+  signerAccountId        String
+  idempotencyKey         String
+  requestDigest          String
+  approvedManifestDigest String
+  approvedBatchVersion   Int
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  settledAt              DateTime?
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  batch                  PayrollBatch           @relation(fields: [batchId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy              User                   @relation("PayrollPayoutCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items                  PayrollPayoutItem[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, batchId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, createdAt])
+}
+
+model PayrollPayoutItem {
+  id                String                  @id @default(uuid()) @db.Uuid
+  organizationId    String                  @db.Uuid
+  payoutRunId       String                  @db.Uuid
+  payrollLineId     String                  @db.Uuid
+  status            PayrollPayoutItemStatus @default(PREPARED)
+  instructionDigest String
+  transactionHash   String?
+  evidenceDigest    String?
+  verifiedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  payoutRun         PayrollPayoutRun        @relation(fields: [payoutRunId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  payrollLine       PayrollLine             @relation(fields: [payrollLineId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@unique([payoutRunId, payrollLineId])
+  @@unique([transactionHash])
+  @@index([organizationId, status, createdAt])
 }
 
 model PayrollAnalysisRun {

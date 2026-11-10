@@ -35,6 +35,7 @@ import {
 } from '../auth/auth.guards.js';
 import { PayrollService } from './payroll.service.js';
 import { PayrollError } from './payroll.types.js';
+import { ProviderAdapterError } from '../settlement/provider-adapter.types.js';
 
 const atomic = z.string().regex(/^[1-9][0-9]{0,77}$/);
 const importSchema = z
@@ -55,6 +56,20 @@ const approvalSchema = z
   .strict();
 const analysisSchema = z
   .object({ mode: z.enum(['deterministic', 'private-ai']) })
+  .strict();
+const payoutPreparationSchema = z
+  .object({
+    signerAccountId: z
+      .string()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/),
+  })
+  .strict();
+const payoutEvidenceSchema = z
+  .object({
+    transactionHash: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/),
+  })
   .strict();
 const uuid = z.string().uuid();
 const importOpenApi: SchemaObject = {
@@ -92,6 +107,70 @@ const analysisOpenApi: SchemaObject = {
   required: ['mode'],
   properties: {
     mode: { type: 'string', enum: ['deterministic', 'private-ai'] },
+  },
+};
+const payoutPreparationOpenApi: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['signerAccountId'],
+  properties: {
+    signerAccountId: { type: 'string', minLength: 2, maxLength: 64 },
+  },
+};
+const payoutEvidenceOpenApi: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['transactionHash'],
+  properties: {
+    transactionHash: { type: 'string', minLength: 43, maxLength: 44 },
+  },
+};
+const payoutRunOpenApi: SchemaObject = {
+  type: 'object',
+  required: [
+    'id',
+    'batchId',
+    'status',
+    'signerAccountId',
+    'approvedManifestDigest',
+    'settledAt',
+    'items',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    batchId: { type: 'string', format: 'uuid' },
+    status: { type: 'string', enum: ['PREPARED', 'PROCESSING', 'SETTLED'] },
+    signerAccountId: { type: 'string' },
+    approvedManifestDigest: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+    settledAt: {
+      oneOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }],
+    },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'payrollLineId',
+          'status',
+          'transactionHash',
+          'evidenceDigest',
+          'verifiedAt',
+          'transaction',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          payrollLineId: { type: 'string', format: 'uuid' },
+          status: { type: 'string', enum: ['PREPARED', 'VERIFIED'] },
+          transactionHash: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+          evidenceDigest: { oneOf: [{ type: 'string' }, { type: 'null' }] },
+          verifiedAt: {
+            oneOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }],
+          },
+          transaction: { oneOf: [{ type: 'object' }, { type: 'null' }] },
+        },
+      },
+    },
   },
 };
 const payrollSummaryOpenApi: SchemaObject = {
@@ -366,29 +445,97 @@ export class PayrollController {
     );
   }
 
+  @Post('batches/:batchId/payouts')
+  @RequireOrganizationPermission('payroll:payout')
+  @ApiHeader({ name: 'X-CSRF-Token', required: true })
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
+  @ApiBody({ schema: payoutPreparationOpenApi })
+  @ApiOperation({
+    summary: 'Prepare exact wallet-signed testnet payroll transactions',
+  })
+  @ApiResponse({ status: 201, schema: payoutRunOpenApi })
+  preparePayout(
+    @Req() request: AuthenticatedRequest,
+    @Param('orgId') organizationId: string,
+    @Param('batchId') batchId: string,
+    @Headers('idempotency-key') key: string | undefined,
+    @Body() body: unknown,
+  ) {
+    return this.execute(() => {
+      const value = payoutPreparationSchema.parse(body);
+      return this.payroll.preparePayout(
+        organizationId,
+        uuid.parse(batchId),
+        requestPrincipal(request).userId,
+        value.signerAccountId,
+        key ?? '',
+      );
+    });
+  }
+
+  @Post('batches/:batchId/payouts/items/:itemId/reconcile')
+  @RequireOrganizationPermission('payroll:payout')
+  @ApiHeader({ name: 'X-CSRF-Token', required: true })
+  @ApiBody({ schema: payoutEvidenceOpenApi })
+  @ApiOperation({
+    summary: 'Verify one final testnet payroll transfer against chain RPC',
+  })
+  @ApiResponse({ status: 201, schema: payoutRunOpenApi })
+  reconcilePayoutItem(
+    @Req() request: AuthenticatedRequest,
+    @Param('orgId') organizationId: string,
+    @Param('batchId') batchId: string,
+    @Param('itemId') itemId: string,
+    @Body() body: unknown,
+  ) {
+    return this.execute(() => {
+      const value = payoutEvidenceSchema.parse(body);
+      return this.payroll.reconcilePayoutItem(
+        organizationId,
+        uuid.parse(batchId),
+        uuid.parse(itemId),
+        requestPrincipal(request).userId,
+        value.transactionHash,
+      );
+    });
+  }
+
   private async execute<T>(operation: () => T | Promise<T>): Promise<T> {
     try {
       return await operation();
     } catch (error) {
       if (error instanceof z.ZodError) throw new BadRequestException();
       if (error instanceof PayrollError) {
-        if (error.code === 'PAYROLL_NOT_FOUND') throw new NotFoundException();
+        if (
+          error.code === 'PAYROLL_NOT_FOUND' ||
+          error.code === 'PAYROLL_PAYOUT_NOT_FOUND'
+        )
+          throw new NotFoundException();
         if (error.code === 'PAYROLL_ACCESS_DENIED')
           throw new ForbiddenException();
         if (
           error.code === 'PRIVATE_AI_DISABLED' ||
-          error.code === 'PRIVATE_AI_UNAVAILABLE'
+          error.code === 'PRIVATE_AI_UNAVAILABLE' ||
+          error.code === 'PAYROLL_PAYOUT_DISABLED'
         ) {
           throw new ServiceUnavailableException();
         }
         if (
           error.code === 'PAYROLL_DUPLICATE' ||
           error.code === 'PAYROLL_MANIFEST_MISMATCH' ||
-          error.code === 'PAYROLL_NOT_APPROVABLE'
+          error.code === 'PAYROLL_NOT_APPROVABLE' ||
+          error.code === 'PAYROLL_PAYOUT_NOT_READY' ||
+          error.code === 'PAYROLL_PAYOUT_CONFLICT'
         ) {
           throw new ConflictException();
         }
         throw new BadRequestException();
+      }
+      if (error instanceof ProviderAdapterError) {
+        if (error.code === 'PROVIDER_UNAVAILABLE') {
+          throw new ServiceUnavailableException();
+        }
+        throw new ConflictException();
       }
       throw error;
     }

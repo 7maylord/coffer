@@ -82,6 +82,81 @@ const organizationSchema: SchemaObject = {
   },
 };
 
+const memberSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['userId', 'displayName', 'role', 'wallets'],
+  properties: {
+    userId: { type: 'string' },
+    displayName: { type: 'string' },
+    role: {
+      type: 'string',
+      enum: [
+        'OWNER',
+        'FINANCE_ADMIN',
+        'APPROVER',
+        'AGENT_OPERATOR',
+        'EMPLOYEE',
+        'AUDITOR',
+        'VIEWER',
+      ],
+    },
+    wallets: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['network', 'accountId'],
+        properties: {
+          network: { type: 'string' },
+          accountId: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+const inviteResponseSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'inviteId',
+    'token',
+    'network',
+    'targetNearAccountId',
+    'role',
+    'expiresAt',
+  ],
+  properties: {
+    inviteId: { type: 'string', format: 'uuid' },
+    token: { type: 'string', minLength: 43, maxLength: 43 },
+    network: { type: 'string' },
+    targetNearAccountId: { type: 'string' },
+    role: { type: 'string', enum: [...inviteRoles] },
+    expiresAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const acceptedInviteSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['organizationId', 'role'],
+  properties: {
+    organizationId: { type: 'string', format: 'uuid' },
+    role: {
+      type: 'string',
+      enum: [
+        'FINANCE_ADMIN',
+        'APPROVER',
+        'AGENT_OPERATOR',
+        'EMPLOYEE',
+        'AUDITOR',
+        'VIEWER',
+      ],
+    },
+  },
+};
+
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success) throw new BadRequestException();
@@ -150,6 +225,11 @@ export class OrganizationController {
     },
   })
   @ApiOperation({ summary: 'Create an account-targeted organization invite' })
+  @ApiResponse({
+    status: 201,
+    description: 'Single-use invitation secret; returned only at creation',
+    schema: inviteResponseSchema,
+  })
   invite(
     @Req() request: AuthenticatedRequest,
     @Param('orgId') organizationId: string,
@@ -164,7 +244,11 @@ export class OrganizationController {
 
   @Post('invites/accept')
   @ApiOperation({ summary: 'Accept an invite targeted to a verified wallet' })
-  @ApiResponse({ status: 201, description: 'Membership created or restored' })
+  @ApiResponse({
+    status: 201,
+    description: 'Membership created or restored',
+    schema: acceptedInviteSchema,
+  })
   accept(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.organizations.accept(
       requestPrincipal(request),
@@ -177,6 +261,11 @@ export class OrganizationController {
   @RequireOrganizationPermission('organization:read')
   @ApiParam({ name: 'orgId', type: String })
   @ApiOperation({ summary: 'List active organization members' })
+  @ApiResponse({
+    status: 200,
+    description: 'Active organization members',
+    schema: { type: 'array', items: memberSchema },
+  })
   members(@Param('orgId') organizationId: string) {
     return this.organizations.members(organizationId);
   }
@@ -187,6 +276,16 @@ export class OrganizationController {
   @ApiParam({ name: 'orgId', type: String })
   @ApiParam({ name: 'userId', type: String })
   @ApiOperation({ summary: 'Revoke a non-owner membership immediately' })
+  @ApiResponse({
+    status: 200,
+    description: 'Membership revoked',
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['status'],
+      properties: { status: { type: 'string', enum: ['revoked'] } },
+    },
+  })
   revokeMember(
     @Req() request: AuthenticatedRequest,
     @Param('orgId') organizationId: string,

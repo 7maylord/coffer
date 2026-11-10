@@ -28,6 +28,16 @@ const optionalNearHash = z.preprocess(
     .regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/)
     .optional(),
 );
+const deploymentDigests = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim()
+      ? value.split(',').map((entry) => entry.trim())
+      : [],
+  z
+    .array(z.string().regex(/^[0-9a-f]{64}$/))
+    .min(0)
+    .max(20),
+);
 const serviceUrl = (protocols: string[]) =>
   z
     .string()
@@ -70,7 +80,7 @@ const envSchema = z
     PRIVATE_AI_PROVIDER: z
       .enum(['unavailable', 'near-ai'])
       .default('unavailable'),
-    FEATURE_PAYROLL_BATCH_PAYOUT: disabled,
+    FEATURE_PAYROLL_BATCH_PAYOUT: featureFlag,
     FEATURE_MULTI_TENANT_BILLING: disabled,
     STRICT_TEE_ATTESTATION: z
       .literal('true')
@@ -78,7 +88,7 @@ const envSchema = z
       .transform(() => true),
     NEAR_NETWORK: z.literal('testnet').default('testnet'),
     NEAR_RPC_URL: serviceUrl(['https:']).default(
-      'https://rpc.testnet.near.org',
+      'https://test.rpc.fastnear.com',
     ),
     NEAR_INTENTS_API_URL: serviceUrl(['https:']).default(
       'https://1click.chaindefuser.com',
@@ -95,6 +105,7 @@ const envSchema = z
       'https://cloud-api.near.ai/v1',
     ),
     NEAR_AI_API_KEY: optionalSecret,
+    NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: deploymentDigests,
     ENCRYPTION_KEY_BASE64: optionalSecret,
     ENCRYPTION_KEY_VERSION: z
       .string()
@@ -108,7 +119,7 @@ const envSchema = z
       .min(3)
       .max(200)
       .regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/)
-      .default('zai-org/GLM-5.1-FP8'),
+      .default('z-ai/glm-5.3-flash'),
   })
   .superRefine((value, context) => {
     if (value.NEAR_INTENTS_API_KEY && value.NEAR_INTENTS_JWT) {
@@ -168,6 +179,16 @@ const envSchema = z
       });
     }
     if (
+      value.FEATURE_PAYROLL_BATCH_PAYOUT &&
+      (!value.LIVE_TRANSFERS_ENABLED || !value.NEAR_TESTNET_TRANSFERS_ENABLED)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['FEATURE_PAYROLL_BATCH_PAYOUT'],
+        message: 'Payroll payouts require the gated testnet transfer adapter',
+      });
+    }
+    if (
       value.AI_CFO_PROVIDER === 'near-ai' &&
       (!value.NEAR_AI_CFO_ENABLED || !value.NEAR_AI_API_KEY)
     ) {
@@ -188,13 +209,15 @@ const envSchema = z
       value.FEATURE_PRIVATE_AI &&
       (value.PRIVATE_AI_PROVIDER !== 'near-ai' ||
         !value.NEAR_AI_API_KEY ||
-        !value.ENCRYPTION_KEY_BASE64)
+        !value.ENCRYPTION_KEY_BASE64 ||
+        value.NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS.length === 0 ||
+        new URL(value.NEAR_AI_BASE_URL).origin !== 'https://cloud-api.near.ai')
     ) {
       context.addIssue({
         code: 'custom',
         path: ['FEATURE_PRIVATE_AI'],
         message:
-          'Private AI requires the NEAR AI provider, API key, and persistent encryption key',
+          'Private AI requires the direct NEAR AI provider, API key, persistent encryption key, and approved deployment digest',
       });
     }
     if (

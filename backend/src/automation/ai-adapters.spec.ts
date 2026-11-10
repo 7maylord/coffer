@@ -33,7 +33,7 @@ describe('NearAiCfoInferenceAdapter', () => {
       return new Response(
         JSON.stringify({
           id: 'completion-1',
-          model: 'zai-org/GLM-5.1-FP8',
+          model: 'z-ai/glm-5.3-flash',
           choices: [
             {
               message: {
@@ -52,7 +52,7 @@ describe('NearAiCfoInferenceAdapter', () => {
 
     await expect(adapter.infer(input)).resolves.toMatchObject({
       provider: 'near-ai-cloud',
-      model: 'zai-org/GLM-5.1-FP8',
+      model: 'z-ai/glm-5.3-flash',
       providerRequestId: 'request-1',
       attestationStatus: 'UNVERIFIED',
     });
@@ -108,7 +108,7 @@ describe('NearAiCfoInferenceAdapter', () => {
         new Response(
           JSON.stringify({
             id: 'completion-3',
-            model: 'zai-org/GLM-5.1-FP8',
+            model: 'z-ai/glm-5.3-flash',
             choices: [{ message: { content: 'not-json' } }],
           }),
         ),

@@ -52,25 +52,23 @@ Auditors have a separate purpose-required route that returns commitments and
 pseudonymous codes without individual plaintext values.
 
 Deterministic local anomaly analysis is always available and is labeled as
-unattested. The NEAR AI adapter requests model evidence with a fresh nonce and
-must verify every candidate before it sends salary values. It preserves exact
-completion bytes, obtains the response signature, and accepts only an Ed25519
-`provider_tee` signature matching exactly one retained preflight-verified model
-report. Gateway signatures do not satisfy this policy. Findings may reference
-only known line IDs and bounded anomaly fields.
-
-The repository does not bundle an Intel DCAP, event-log, GPU-evidence, and
-measurement-policy implementation. Its default model-report verifier therefore
-returns unavailable, preventing the completion request and forcing the honest
-deterministic fallback. A live private-inference claim remains prohibited until
-that verifier is supplied, reviewed, and tested with current provider evidence.
+unattested. ADR-0019 supersedes the original unavailable-verifier decision with
+the pinned official NEAR AI Inference SDK. The adapter verifies Gateway and
+model evidence before sending payroll, requires GPU evidence and an approved
+measured deployment, enables field-level E2EE, and accepts only an Ed25519
+`provider_tee` response verified over the retained response bytes. Gateway
+signatures do not satisfy this policy. Findings may reference only known line
+IDs and bounded anomaly fields.
 
 ## Consequences
 
 - No payroll plaintext is written to audit metadata, inference records, public
   events, manifests, logs, or contract payloads.
 - `FEATURE_PRIVATE_AI` defaults off and also requires a persistent encryption
-  key, NEAR AI key, and the explicit NEAR AI provider selection.
-- No batch payout route exists in B-09. Approval does not sign or transfer funds.
+  key, NEAR AI key, direct official origin, explicit provider selection, and at
+  least one reviewed deployment digest.
+- B-09 itself added no payout. ADR-0018 later adds a separately gated,
+  wallet-signed testnet payout path; approval still does not sign or transfer
+  funds.
 - Legal payroll calculations, retention/deletion, key rotation, confidential
   payout routing, exports, and operator recovery remain later gated work.

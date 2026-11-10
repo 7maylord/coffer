@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
-import { PayrollBatchStatus, Prisma, PrismaClient } from '@prisma/client';
+import {
+  PayrollBatchStatus,
+  PayrollPayoutItemStatus,
+  PayrollPayoutRunStatus,
+  Prisma,
+  PrismaClient,
+} from '@prisma/client';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
 import {
   PayrollError,
@@ -209,6 +215,191 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
     });
   }
 
+  async payoutRun(organizationId: string, batchId: string) {
+    const run = await this.prisma.payrollPayoutRun.findUnique({
+      where: { organizationId_batchId: { organizationId, batchId } },
+      include: { items: { orderBy: { id: 'asc' } } },
+    });
+    return run ? mapPayoutRun(run) : null;
+  }
+
+  async createPayoutRun(input: Parameters<PayrollStore['createPayoutRun']>[0]) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const batch = await tx.payrollBatch.findFirst({
+          where: {
+            id: input.batchId,
+            organizationId: input.organizationId,
+            status: PayrollBatchStatus.APPROVED,
+            manifestDigest: input.approvedManifestDigest,
+            approvedManifestDigest: input.approvedManifestDigest,
+            version: input.approvedBatchVersion,
+          },
+          select: { id: true },
+        });
+        if (!batch) {
+          throw new PayrollError(
+            'PAYROLL_PAYOUT_NOT_READY',
+            'Approved payroll manifest changed before payout preparation',
+          );
+        }
+        const run = await tx.payrollPayoutRun.create({
+          data: {
+            organizationId: input.organizationId,
+            batchId: input.batchId,
+            createdByUserId: input.actorUserId,
+            signerAccountId: input.signerAccountId,
+            idempotencyKey: input.idempotencyKey,
+            requestDigest: input.requestDigest,
+            approvedManifestDigest: input.approvedManifestDigest,
+            approvedBatchVersion: input.approvedBatchVersion,
+            items: {
+              create: input.items.map((item) => ({
+                organizationId: input.organizationId,
+                payrollLineId: item.payrollLineId,
+                instructionDigest: item.instructionDigest,
+              })),
+            },
+          },
+          include: { items: { orderBy: { id: 'asc' } } },
+        });
+        await tx.auditEvent.create({
+          data: {
+            organizationId: input.organizationId,
+            actorId: input.actorUserId,
+            eventType: 'PAYROLL_PAYOUT_PREPARED',
+            entityType: 'PAYROLL_PAYOUT',
+            entityId: run.id,
+            correlationId: randomUUID(),
+            metadata: {
+              batchId: input.batchId,
+              approvedManifestDigest: input.approvedManifestDigest,
+              itemCount: input.items.length,
+            },
+          },
+        });
+        return mapPayoutRun(run);
+      });
+    } catch (error) {
+      if (known(error, 'P2002')) {
+        const existing = await this.payoutRun(
+          input.organizationId,
+          input.batchId,
+        );
+        if (
+          existing?.idempotencyKey === input.idempotencyKey &&
+          existing.requestDigest === input.requestDigest
+        ) {
+          return existing;
+        }
+        throw new PayrollError(
+          'PAYROLL_PAYOUT_CONFLICT',
+          'Payout idempotency key or batch is already in use',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async verifyPayoutItem(
+    input: Parameters<PayrollStore['verifyPayoutItem']>[0],
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "PayrollPayoutRun" WHERE "id" = ${input.payoutRunId}::uuid AND "organizationId" = ${input.organizationId}::uuid FOR UPDATE`,
+      );
+      await tx.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "PayrollPayoutItem" WHERE "id" = ${input.payoutItemId}::uuid AND "organizationId" = ${input.organizationId}::uuid AND "payoutRunId" = ${input.payoutRunId}::uuid FOR UPDATE`,
+      );
+      const current = await tx.payrollPayoutItem.findFirst({
+        where: {
+          id: input.payoutItemId,
+          organizationId: input.organizationId,
+          payoutRunId: input.payoutRunId,
+        },
+      });
+      if (!current) return null;
+      if (current.status === PayrollPayoutItemStatus.VERIFIED) {
+        if (current.transactionHash !== input.transactionHash) return null;
+      } else {
+        await tx.payrollPayoutItem.update({
+          where: { id: current.id },
+          data: {
+            status: PayrollPayoutItemStatus.VERIFIED,
+            transactionHash: input.transactionHash,
+            evidenceDigest: input.evidenceDigest,
+            verifiedAt: input.verifiedAt,
+          },
+        });
+        await tx.auditEvent.create({
+          data: {
+            organizationId: input.organizationId,
+            actorId: input.actorUserId,
+            eventType: 'PAYROLL_PAYOUT_TRANSFER_VERIFIED',
+            entityType: 'PAYROLL_PAYOUT_ITEM',
+            entityId: current.id,
+            correlationId: randomUUID(),
+            metadata: {
+              payoutRunId: input.payoutRunId,
+              transactionHash: input.transactionHash,
+              evidenceDigest: input.evidenceDigest,
+            },
+          },
+        });
+      }
+      const pending = await tx.payrollPayoutItem.count({
+        where: {
+          payoutRunId: input.payoutRunId,
+          organizationId: input.organizationId,
+          status: PayrollPayoutItemStatus.PREPARED,
+        },
+      });
+      const run = await tx.payrollPayoutRun.findFirstOrThrow({
+        where: {
+          id: input.payoutRunId,
+          organizationId: input.organizationId,
+        },
+        select: { batchId: true, status: true },
+      });
+      if (run.status === PayrollPayoutRunStatus.PREPARED) {
+        await tx.payrollPayoutRun.update({
+          where: { id: input.payoutRunId },
+          data: { status: PayrollPayoutRunStatus.PROCESSING },
+        });
+        await tx.payrollBatch.updateMany({
+          where: {
+            id: run.batchId,
+            organizationId: input.organizationId,
+            status: PayrollBatchStatus.APPROVED,
+          },
+          data: { status: PayrollBatchStatus.PROCESSING },
+        });
+      }
+      if (pending === 0) {
+        await tx.payrollPayoutRun.update({
+          where: { id: input.payoutRunId },
+          data: {
+            status: PayrollPayoutRunStatus.SETTLED,
+            settledAt: input.verifiedAt,
+          },
+        });
+        await tx.payrollBatch.updateMany({
+          where: {
+            id: run.batchId,
+            organizationId: input.organizationId,
+            status: PayrollBatchStatus.PROCESSING,
+          },
+          data: { status: PayrollBatchStatus.SETTLED },
+        });
+      }
+      const updated = await tx.payrollPayoutRun.findUniqueOrThrow({
+        where: { id: input.payoutRunId },
+        include: { items: { orderBy: { id: 'asc' } } },
+      });
+      return mapPayoutRun(updated);
+    });
+  }
+
   async payslipForUser(userId: string, lineId: string) {
     const line = await this.prisma.payrollLine.findFirst({
       where: {
@@ -349,6 +540,36 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
 type BatchPayload = Prisma.PayrollBatchGetPayload<{
   include: { lines: { include: { employee: true } } };
 }>;
+
+type PayoutRunPayload = Prisma.PayrollPayoutRunGetPayload<{
+  include: { items: true };
+}>;
+
+function mapPayoutRun(value: PayoutRunPayload) {
+  return {
+    id: value.id,
+    organizationId: value.organizationId,
+    batchId: value.batchId,
+    status: value.status,
+    signerAccountId: value.signerAccountId,
+    idempotencyKey: value.idempotencyKey,
+    requestDigest: value.requestDigest,
+    approvedManifestDigest: value.approvedManifestDigest,
+    approvedBatchVersion: value.approvedBatchVersion,
+    settledAt: value.settledAt,
+    items: value.items.map((item) => ({
+      id: item.id,
+      organizationId: item.organizationId,
+      payoutRunId: item.payoutRunId,
+      payrollLineId: item.payrollLineId,
+      status: item.status,
+      instructionDigest: item.instructionDigest,
+      transactionHash: item.transactionHash,
+      evidenceDigest: item.evidenceDigest,
+      verifiedAt: item.verifiedAt,
+    })),
+  };
+}
 
 function mapBatch(value: BatchPayload): StoredPayrollBatch {
   return {

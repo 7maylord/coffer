@@ -2,8 +2,13 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
-import { AssetRegistry } from '../treasury/asset-registry.js';
+import {
+  AssetRegistry,
+  AssetRegistryError,
+} from '../treasury/asset-registry.js';
 import { parseAtomicAmount } from '../treasury/money.js';
+import { NearTestnetTransferAdapter } from '../settlement/near-testnet-transfer.adapter.js';
+import type { NearTransferInstruction } from '../settlement/provider-adapter.types.js';
 import { parseSyntheticPayrollCsv } from './payroll-csv.js';
 import { PayrollEnvelopeEncryption } from './payroll-crypto.js';
 import {
@@ -19,6 +24,7 @@ import {
   type PrivatePayrollAnalyzer,
   type StoredPayrollBatch,
   type StoredPayrollLine,
+  type StoredPayrollPayoutRun,
 } from './payroll.types.js';
 
 const reference = z
@@ -29,6 +35,12 @@ const reference = z
   .regex(/^[A-Za-z0-9._-]+$/);
 const positiveAtomic = z.string().regex(/^[1-9][0-9]{0,77}$/);
 const digestSchema = z.string().regex(/^[0-9a-f]{64}$/);
+const nearAccount = z
+  .string()
+  .min(2)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
+const idempotencyKey = z.string().trim().min(8).max(128);
 const privateOutputSchema = z
   .object({
     findings: z
@@ -63,6 +75,8 @@ export class PayrollService {
     private readonly encryption: PayrollEnvelopeEncryption,
     @Inject(AssetRegistry) private readonly assets: AssetRegistry,
     @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
+    @Inject(NearTestnetTransferAdapter)
+    private readonly transfers: NearTestnetTransferAdapter,
   ) {}
 
   async importSynthetic(
@@ -354,6 +368,125 @@ export class PayrollService {
     return summaryView(approved);
   }
 
+  async preparePayout(
+    organizationId: string,
+    batchId: string,
+    actorUserId: string,
+    signerAccountIdInput: string,
+    idempotencyKeyInput: string,
+  ) {
+    this.assertPayoutEnabled();
+    const signerAccountId = nearAccount.parse(signerAccountIdInput);
+    const key = idempotencyKey.parse(idempotencyKeyInput);
+    const batch = await this.requireBatch(organizationId, batchId);
+    const existing = await this.store.payoutRun(organizationId, batchId);
+    if (existing) this.assertPayoutIntegrity(batch, existing);
+    else this.assertPayoutReady(batch);
+    const plan = this.payoutPlan(batch, signerAccountId);
+    const requestDigest = digest({
+      domain: 'coffer:payroll-payout-request:v1',
+      organizationId,
+      batchId,
+      signerAccountId,
+      approvedManifestDigest: batch.approvedManifestDigest,
+      approvedBatchVersion: batch.version,
+      items: plan.map(({ line, instructionDigest }) => ({
+        payrollLineId: line.id,
+        instructionDigest,
+      })),
+    });
+    const run =
+      existing ??
+      (await this.store.createPayoutRun({
+        organizationId,
+        batchId,
+        actorUserId,
+        signerAccountId,
+        idempotencyKey: key,
+        requestDigest,
+        approvedManifestDigest: batch.approvedManifestDigest!,
+        approvedBatchVersion: batch.version,
+        items: plan.map(({ line, instructionDigest }) => ({
+          payrollLineId: line.id,
+          instructionDigest,
+        })),
+      }));
+    if (
+      run.idempotencyKey !== key ||
+      run.requestDigest !== requestDigest ||
+      run.signerAccountId !== signerAccountId
+    ) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_CONFLICT',
+        'Payroll payout was already prepared with different instructions',
+      );
+    }
+    return this.payoutView(run, plan);
+  }
+
+  async reconcilePayoutItem(
+    organizationId: string,
+    batchId: string,
+    payoutItemId: string,
+    actorUserId: string,
+    transactionHash: string,
+  ) {
+    this.assertPayoutEnabled();
+    const batch = await this.requireBatch(organizationId, batchId);
+    const run = await this.store.payoutRun(organizationId, batchId);
+    if (!run) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_NOT_FOUND',
+        'Payroll payout run was not found',
+      );
+    }
+    this.assertPayoutIntegrity(batch, run);
+    const plan = this.payoutPlan(batch, run.signerAccountId);
+    const item = run.items.find(({ id }) => id === payoutItemId);
+    const planned = item
+      ? plan.find(({ line }) => line.id === item.payrollLineId)
+      : undefined;
+    if (
+      !item ||
+      !planned ||
+      item.instructionDigest !== planned.instructionDigest
+    ) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_NOT_FOUND',
+        'Payroll payout item was not found',
+      );
+    }
+    if (item.status === 'VERIFIED') {
+      if (item.transactionHash !== transactionHash) {
+        throw new PayrollError(
+          'PAYROLL_PAYOUT_CONFLICT',
+          'Payroll payout item already has different transaction evidence',
+        );
+      }
+      return this.payoutView(run, plan);
+    }
+    const evidence = await this.transfers.verifyAndClaim({
+      ...planned.instruction,
+      transactionHash,
+    });
+    const updated = await this.store.verifyPayoutItem({
+      organizationId,
+      payoutRunId: run.id,
+      payoutItemId,
+      actorUserId,
+      transactionHash: evidence.transactionHash,
+      evidenceDigest: evidence.evidenceDigest,
+      verifiedAt: new Date(evidence.verifiedAt),
+    });
+    if (!updated) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_CONFLICT',
+        'Payroll payout changed during reconciliation',
+      );
+    }
+    return this.payoutView(updated, plan);
+  }
+
   async analyze(
     organizationId: string,
     batchId: string,
@@ -421,7 +554,7 @@ export class PayrollService {
         'Verified private analysis is unavailable',
       );
     }
-    const responseDigest = hashBuffer(result.exactResponseBody);
+    const responseDigest = hashBuffer(result.responseBody);
     if (!this.attestationVerifier.verify(result)) {
       await this.store.recordAnalysis({
         organizationId,
@@ -524,6 +657,114 @@ export class PayrollService {
     } finally {
       dataKey.fill(0);
     }
+  }
+
+  private assertPayoutEnabled() {
+    if (!this.environment.FEATURE_PAYROLL_BATCH_PAYOUT) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_DISABLED',
+        'Payroll payouts are disabled',
+      );
+    }
+  }
+
+  private assertPayoutReady(batch: StoredPayrollBatch) {
+    if (
+      batch.status !== 'APPROVED' ||
+      batch.approvedManifestDigest !== batch.manifestDigest
+    ) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_NOT_READY',
+        'Exact payroll manifest approval is required before payout',
+      );
+    }
+    this.requirePayoutAsset(batch.assetId);
+  }
+
+  private assertPayoutIntegrity(
+    batch: StoredPayrollBatch,
+    run: StoredPayrollPayoutRun,
+  ) {
+    if (
+      !['APPROVED', 'PROCESSING', 'SETTLED'].includes(batch.status) ||
+      batch.manifestDigest !== run.approvedManifestDigest ||
+      batch.approvedManifestDigest !== run.approvedManifestDigest ||
+      batch.version !== run.approvedBatchVersion
+    ) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_CONFLICT',
+        'Payroll payout no longer matches its approved manifest',
+      );
+    }
+    this.requirePayoutAsset(batch.assetId);
+  }
+
+  private requirePayoutAsset(assetId: string) {
+    try {
+      this.assets.assertAdapter(assetId, 'near-testnet');
+    } catch (error) {
+      if (error instanceof AssetRegistryError) {
+        throw new PayrollError(
+          'PAYROLL_PAYOUT_NOT_READY',
+          'Payroll asset is not supported by the testnet payout adapter',
+        );
+      }
+      throw error;
+    }
+  }
+
+  private payoutPlan(batch: StoredPayrollBatch, signerAccountId: string) {
+    const decrypted = this.decryptLines(batch);
+    return decrypted.map((line) => {
+      const instruction: NearTransferInstruction = {
+        organizationId: batch.organizationId,
+        referenceId: `payroll:${batch.id}:${line.id}`,
+        network: 'testnet',
+        assetId: batch.assetId,
+        signerAccountId,
+        receiverAccountId: nearAccount.parse(line.profile.payoutAccount),
+        amountAtomic: positiveAtomic.parse(line.netAmountAtomic),
+      };
+      return { line, instruction, instructionDigest: digest(instruction) };
+    });
+  }
+
+  private async payoutView(
+    run: StoredPayrollPayoutRun,
+    plan: ReturnType<PayrollService['payoutPlan']>,
+  ) {
+    const items = await Promise.all(
+      run.items.map(async (item) => {
+        const planned = plan.find(({ line }) => line.id === item.payrollLineId);
+        if (!planned || planned.instructionDigest !== item.instructionDigest) {
+          throw new PayrollError(
+            'PAYROLL_PAYOUT_CONFLICT',
+            'Stored payout instruction does not match the approved payroll',
+          );
+        }
+        return {
+          id: item.id,
+          payrollLineId: item.payrollLineId,
+          status: item.status,
+          transactionHash: item.transactionHash,
+          evidenceDigest: item.evidenceDigest,
+          verifiedAt: item.verifiedAt,
+          transaction:
+            item.status === 'PREPARED'
+              ? await this.transfers.walletTransaction(planned.instruction)
+              : null,
+        };
+      }),
+    );
+    return {
+      id: run.id,
+      batchId: run.batchId,
+      status: run.status,
+      signerAccountId: run.signerAccountId,
+      approvedManifestDigest: run.approvedManifestDigest,
+      settledAt: run.settledAt,
+      items,
+    };
   }
 }
 

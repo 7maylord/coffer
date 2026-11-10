@@ -560,7 +560,55 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "Single-use invitation secret; returned only at creation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "inviteId",
+                    "token",
+                    "network",
+                    "targetNearAccountId",
+                    "role",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "inviteId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "token": {
+                      "type": "string",
+                      "minLength": 43,
+                      "maxLength": 43
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "targetNearAccountId": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "finance_admin",
+                        "approver",
+                        "agent_operator",
+                        "employee",
+                        "auditor",
+                        "viewer"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -580,7 +628,36 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": "Membership created or restored"
+            "description": "Membership created or restored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "organizationId",
+                    "role"
+                  ],
+                  "properties": {
+                    "organizationId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "FINANCE_ADMIN",
+                        "APPROVER",
+                        "AGENT_OPERATOR",
+                        "EMPLOYEE",
+                        "AUDITOR",
+                        "VIEWER"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -609,7 +686,63 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Active organization members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "userId",
+                      "displayName",
+                      "role",
+                      "wallets"
+                    ],
+                    "properties": {
+                      "userId": {
+                        "type": "string"
+                      },
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "OWNER",
+                          "FINANCE_ADMIN",
+                          "APPROVER",
+                          "AGENT_OPERATOR",
+                          "EMPLOYEE",
+                          "AUDITOR",
+                          "VIEWER"
+                        ]
+                      },
+                      "wallets": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "network",
+                            "accountId"
+                          ],
+                          "properties": {
+                            "network": {
+                              "type": "string"
+                            },
+                            "accountId": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -646,7 +779,26 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Membership revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "revoked"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -9979,6 +10131,364 @@
           }
         ],
         "summary": "Run deterministic or strictly verified payroll analysis",
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts": {
+      "post": {
+        "operationId": "Payroll.preparePayout",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "signerAccountId"
+                ],
+                "properties": {
+                  "signerAccountId": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "batchId",
+                    "status",
+                    "signerAccountId",
+                    "approvedManifestDigest",
+                    "settledAt",
+                    "items"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "batchId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PREPARED",
+                        "PROCESSING",
+                        "SETTLED"
+                      ]
+                    },
+                    "signerAccountId": {
+                      "type": "string"
+                    },
+                    "approvedManifestDigest": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "settledAt": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "payrollLineId",
+                          "status",
+                          "transactionHash",
+                          "evidenceDigest",
+                          "verifiedAt",
+                          "transaction"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "payrollLineId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PREPARED",
+                              "VERIFIED"
+                            ]
+                          },
+                          "transactionHash": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "evidenceDigest": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "verifiedAt": {
+                            "oneOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transaction": {
+                            "oneOf": [
+                              {
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Prepare exact wallet-signed testnet payroll transactions",
+        "tags": [
+          "payroll"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts/items/{itemId}/reconcile": {
+      "post": {
+        "operationId": "Payroll.reconcilePayoutItem",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transactionHash"
+                ],
+                "properties": {
+                  "transactionHash": {
+                    "type": "string",
+                    "minLength": 43,
+                    "maxLength": 44
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "batchId",
+                    "status",
+                    "signerAccountId",
+                    "approvedManifestDigest",
+                    "settledAt",
+                    "items"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "batchId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PREPARED",
+                        "PROCESSING",
+                        "SETTLED"
+                      ]
+                    },
+                    "signerAccountId": {
+                      "type": "string"
+                    },
+                    "approvedManifestDigest": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "settledAt": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "payrollLineId",
+                          "status",
+                          "transactionHash",
+                          "evidenceDigest",
+                          "verifiedAt",
+                          "transaction"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "payrollLineId": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PREPARED",
+                              "VERIFIED"
+                            ]
+                          },
+                          "transactionHash": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "evidenceDigest": {
+                            "oneOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "verifiedAt": {
+                            "oneOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "transaction": {
+                            "oneOf": [
+                              {
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Verify one final testnet payroll transfer against chain RPC",
         "tags": [
           "payroll"
         ]

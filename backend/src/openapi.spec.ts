@@ -67,6 +67,8 @@ describe('generated OpenAPI', () => {
       '/v1/orgs/{orgId}/payroll/batches/{batchId}/analysis',
       '/v1/orgs/{orgId}/payroll/batches/{batchId}/approve',
       '/v1/orgs/{orgId}/payroll/batches/{batchId}/audit',
+      '/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts',
+      '/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts/items/{itemId}/reconcile',
       '/v1/orgs/{orgId}/payroll/imports',
       '/v1/orgs/{orgId}/policies',
       '/v1/orgs/{orgId}/policies/active',

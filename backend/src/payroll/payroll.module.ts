@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { TreasuryModule } from '../treasury/treasury.module.js';
+import { SettlementModule } from '../settlement/settlement.module.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
 import { PayrollController, PayslipController } from './payroll.controller.js';
 import { PayrollEnvelopeEncryption } from './payroll-crypto.js';
@@ -10,19 +11,19 @@ import {
   UnavailablePrivatePayrollAnalyzer,
 } from './private-analysis.js';
 import {
+  createNearAiInferenceClient,
+  NEAR_AI_INFERENCE_CLIENT,
   NearAiPrivatePayrollAnalyzer,
-  UnavailableNearAiModelReportVerifier,
 } from './near-ai-private.adapter.js';
 import { PrismaPayrollStore } from './prisma-payroll.store.js';
 import {
   PAYROLL_ATTESTATION_VERIFIER,
   PAYROLL_STORE,
   PRIVATE_PAYROLL_ANALYZER,
-  NEAR_AI_MODEL_REPORT_VERIFIER,
 } from './payroll.types.js';
 
 @Module({
-  imports: [AuthModule, TreasuryModule],
+  imports: [AuthModule, TreasuryModule, SettlementModule],
   controllers: [PayrollController, PayslipController],
   providers: [
     PayrollService,
@@ -30,8 +31,12 @@ import {
     PrismaPayrollStore,
     UnavailablePrivatePayrollAnalyzer,
     NearAiPrivatePayrollAnalyzer,
-    UnavailableNearAiModelReportVerifier,
     NearAiPayrollAttestationVerifier,
+    {
+      provide: NEAR_AI_INFERENCE_CLIENT,
+      inject: [APP_ENVIRONMENT],
+      useFactory: createNearAiInferenceClient,
+    },
     { provide: PAYROLL_STORE, useExisting: PrismaPayrollStore },
     {
       provide: PRIVATE_PAYROLL_ANALYZER,
@@ -45,10 +50,6 @@ import {
         unavailable: UnavailablePrivatePayrollAnalyzer,
         nearAi: NearAiPrivatePayrollAnalyzer,
       ) => (environment.FEATURE_PRIVATE_AI ? nearAi : unavailable),
-    },
-    {
-      provide: NEAR_AI_MODEL_REPORT_VERIFIER,
-      useExisting: UnavailableNearAiModelReportVerifier,
     },
     {
       provide: PAYROLL_ATTESTATION_VERIFIER,

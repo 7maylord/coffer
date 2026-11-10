@@ -3,10 +3,6 @@ export const PRIVATE_PAYROLL_ANALYZER = Symbol('PRIVATE_PAYROLL_ANALYZER');
 export const PAYROLL_ATTESTATION_VERIFIER = Symbol(
   'PAYROLL_ATTESTATION_VERIFIER',
 );
-export const NEAR_AI_MODEL_REPORT_VERIFIER = Symbol(
-  'NEAR_AI_MODEL_REPORT_VERIFIER',
-);
-export const NEAR_AI_PRIVATE_FETCH = Symbol('NEAR_AI_PRIVATE_FETCH');
 
 export const payrollErrorCodes = [
   'PAYROLL_INVALID_IMPORT',
@@ -15,6 +11,10 @@ export const payrollErrorCodes = [
   'PAYROLL_ACCESS_DENIED',
   'PAYROLL_MANIFEST_MISMATCH',
   'PAYROLL_NOT_APPROVABLE',
+  'PAYROLL_PAYOUT_DISABLED',
+  'PAYROLL_PAYOUT_NOT_READY',
+  'PAYROLL_PAYOUT_CONFLICT',
+  'PAYROLL_PAYOUT_NOT_FOUND',
   'PRIVATE_AI_DISABLED',
   'PRIVATE_AI_UNAVAILABLE',
   'PRIVATE_AI_UNVERIFIED',
@@ -101,6 +101,32 @@ export type StoredPayrollBatch = {
   lines: StoredPayrollLine[];
 };
 
+export type StoredPayrollPayoutItem = {
+  id: string;
+  organizationId: string;
+  payoutRunId: string;
+  payrollLineId: string;
+  status: 'PREPARED' | 'VERIFIED';
+  instructionDigest: string;
+  transactionHash: string | null;
+  evidenceDigest: string | null;
+  verifiedAt: Date | null;
+};
+
+export type StoredPayrollPayoutRun = {
+  id: string;
+  organizationId: string;
+  batchId: string;
+  status: 'PREPARED' | 'PROCESSING' | 'SETTLED';
+  signerAccountId: string;
+  idempotencyKey: string;
+  requestDigest: string;
+  approvedManifestDigest: string;
+  approvedBatchVersion: number;
+  settledAt: Date | null;
+  items: StoredPayrollPayoutItem[];
+};
+
 export type PayrollFinding = {
   lineId: string;
   code: 'ABOVE_2X_MEDIAN' | 'DUPLICATE_AMOUNT' | 'REVIEW_RECOMMENDED';
@@ -114,21 +140,14 @@ export type PayrollAnalysisInput = {
   lines: Array<{ lineId: string; grossAmountAtomic: string }>;
 };
 
-export type VerifiedModelReport = {
-  signingAddress: string;
-  signingAlgo: 'ed25519';
-  reportDigest: string;
-  verifiedAt: string;
-  verificationMethod: 'intel-dcap+measurements-v1';
-};
-
 export type PrivateAnalysisEvidence = {
-  signatureKind: 'provider_tee' | 'gateway' | 'unknown';
-  signingAlgo: string;
+  verificationMethod: 'nearai-inference-sdk-v0.3';
+  signatureKind: 'provider_tee';
+  signingAlgo: 'ed25519';
   signingAddress: string;
-  text: string;
-  signatureHex: string;
-  verifiedModelReports: VerifiedModelReport[];
+  modelVerifiedAt: string;
+  modelAttestationCount: number;
+  deploymentDigests: string[];
 };
 
 export type PrivateAnalysisResult = {
@@ -136,8 +155,8 @@ export type PrivateAnalysisResult = {
   model: string;
   providerRequestId?: string;
   requestStartedAt: Date;
-  exactRequestBody: Buffer;
-  exactResponseBody: Buffer;
+  requestBody: Buffer;
+  responseBody: Buffer;
   output: unknown;
   evidence?: PrivateAnalysisEvidence;
 };
@@ -150,14 +169,6 @@ export interface PrivatePayrollAnalyzer {
 
 export interface PayrollAttestationVerifier {
   verify(result: PrivateAnalysisResult): boolean;
-}
-
-export interface NearAiModelReportVerifier {
-  verify(input: {
-    candidates: unknown[];
-    requestNonce: string;
-    model: string;
-  }): Promise<VerifiedModelReport[]>;
 }
 
 export interface PayrollStore {
@@ -189,6 +200,30 @@ export interface PayrollStore {
     expectedVersion: number;
     now: Date;
   }): Promise<StoredPayrollBatch | null>;
+  payoutRun(
+    organizationId: string,
+    batchId: string,
+  ): Promise<StoredPayrollPayoutRun | null>;
+  createPayoutRun(input: {
+    organizationId: string;
+    batchId: string;
+    actorUserId: string;
+    signerAccountId: string;
+    idempotencyKey: string;
+    requestDigest: string;
+    approvedManifestDigest: string;
+    approvedBatchVersion: number;
+    items: Array<{ payrollLineId: string; instructionDigest: string }>;
+  }): Promise<StoredPayrollPayoutRun>;
+  verifyPayoutItem(input: {
+    organizationId: string;
+    payoutRunId: string;
+    payoutItemId: string;
+    actorUserId: string;
+    transactionHash: string;
+    evidenceDigest: string;
+    verifiedAt: Date;
+  }): Promise<StoredPayrollPayoutRun | null>;
   payslipForUser(
     userId: string,
     lineId: string,

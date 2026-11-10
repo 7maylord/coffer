@@ -9,6 +9,7 @@ import type {
   PrivatePayrollAnalyzer,
 } from '../src/payroll/payroll.types.js';
 import { AssetRegistry } from '../src/treasury/asset-registry.js';
+import { NearTestnetTransferAdapter } from '../src/settlement/near-testnet-transfer.adapter.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -36,6 +37,7 @@ describeDatabase('private payroll persistence invariants', () => {
     new PayrollEnvelopeEncryption(environment),
     new AssetRegistry(),
     environment,
+    {} as NearTestnetTransferAdapter,
   );
   let organizationId: string;
   let otherOrganizationId: string;

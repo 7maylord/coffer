@@ -67,4 +67,30 @@ describe('provider transfer evidence persistence', () => {
       }),
     ).resolves.toBe(1);
   });
+
+  it('returns the same claim when reconciliation retries exact evidence', async () => {
+    const evidence: NearTransferEvidence = {
+      organizationId: organizationIds[0],
+      referenceId: `retry-${suffix}`,
+      provider: 'near-testnet',
+      network: 'testnet',
+      transactionHash: `retry-hash-${suffix}`,
+      assetId: 'near:testnet:native',
+      signerAccountId: 'payer.testnet',
+      receiverAccountId: 'merchant.testnet',
+      amountAtomic: '1000',
+      evidenceDigest: '2'.repeat(64),
+      verifiedAt: new Date().toISOString(),
+    };
+    await expect(store.claim(evidence)).resolves.toEqual(evidence);
+    await expect(store.claim(evidence)).resolves.toEqual(evidence);
+    await expect(
+      prisma.externalTransferEvidence.count({
+        where: {
+          organizationId: evidence.organizationId,
+          referenceId: evidence.referenceId,
+        },
+      }),
+    ).resolves.toBe(1);
+  });
 });

@@ -1079,6 +1079,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prepare exact wallet-signed testnet payroll transactions */
+    post: operations["Payroll.preparePayout"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/orgs/{orgId}/payroll/batches/{batchId}/payouts/items/{itemId}/reconcile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify one final testnet payroll transfer against chain RPC */
+    post: operations["Payroll.reconcilePayoutItem"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/me/payslips": {
     parameters: {
       query?: never;
@@ -1646,11 +1680,30 @@ export interface operations {
       };
     };
     responses: {
+      /** @description Single-use invitation secret; returned only at creation */
       201: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            inviteId: string;
+            token: string;
+            network: string;
+            targetNearAccountId: string;
+            /** @enum {string} */
+            role:
+              | "finance_admin"
+              | "approver"
+              | "agent_operator"
+              | "employee"
+              | "auditor"
+              | "viewer";
+            /** Format: date-time */
+            expiresAt: string;
+          };
+        };
       };
     };
   };
@@ -1668,7 +1721,20 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            organizationId: string;
+            /** @enum {string} */
+            role:
+              | "FINANCE_ADMIN"
+              | "APPROVER"
+              | "AGENT_OPERATOR"
+              | "EMPLOYEE"
+              | "AUDITOR"
+              | "VIEWER";
+          };
+        };
       };
     };
   };
@@ -1683,11 +1749,30 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description Active organization members */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": {
+            userId: string;
+            displayName: string;
+            /** @enum {string} */
+            role:
+              | "OWNER"
+              | "FINANCE_ADMIN"
+              | "APPROVER"
+              | "AGENT_OPERATOR"
+              | "EMPLOYEE"
+              | "AUDITOR"
+              | "VIEWER";
+            wallets: {
+              network: string;
+              accountId: string;
+            }[];
+          }[];
+        };
       };
     };
   };
@@ -1703,11 +1788,17 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description Membership revoked */
       200: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/json": {
+            /** @enum {string} */
+            status: "revoked";
+          };
+        };
       };
     };
   };
@@ -5099,6 +5190,105 @@ export interface operations {
             /** @enum {string} */
             attestationStatus: "NOT_REQUESTED" | "VERIFIED_PROVIDER_TEE";
             confidentiality: string;
+          };
+        };
+      };
+    };
+  };
+  "Payroll.preparePayout": {
+    parameters: {
+      query?: never;
+      header: {
+        "Idempotency-Key": string;
+        "X-CSRF-Token": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          signerAccountId: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            batchId: string;
+            /** @enum {string} */
+            status: "PREPARED" | "PROCESSING" | "SETTLED";
+            signerAccountId: string;
+            approvedManifestDigest: string;
+            settledAt: string | null;
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              payrollLineId: string;
+              /** @enum {string} */
+              status: "PREPARED" | "VERIFIED";
+              transactionHash: string | null;
+              evidenceDigest: string | null;
+              verifiedAt: string | null;
+              transaction: Record<string, never> | null;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  "Payroll.reconcilePayoutItem": {
+    parameters: {
+      query?: never;
+      header: {
+        "X-CSRF-Token": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          transactionHash: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            batchId: string;
+            /** @enum {string} */
+            status: "PREPARED" | "PROCESSING" | "SETTLED";
+            signerAccountId: string;
+            approvedManifestDigest: string;
+            settledAt: string | null;
+            items: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              payrollLineId: string;
+              /** @enum {string} */
+              status: "PREPARED" | "VERIFIED";
+              transactionHash: string | null;
+              evidenceDigest: string | null;
+              verifiedAt: string | null;
+              transaction: Record<string, never> | null;
+            }[];
           };
         };
       };

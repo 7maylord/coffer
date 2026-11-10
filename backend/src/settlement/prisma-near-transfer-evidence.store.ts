@@ -44,6 +44,35 @@ export class PrismaNearTransferEvidenceStore
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
+        const existing = await this.prisma.externalTransferEvidence.findFirst({
+          where: {
+            OR: [
+              {
+                provider: evidence.provider,
+                network: evidence.network,
+                transactionHash: evidence.transactionHash,
+              },
+              {
+                organizationId: evidence.organizationId,
+                referenceId: evidence.referenceId,
+              },
+            ],
+          },
+        });
+        if (
+          existing?.organizationId === evidence.organizationId &&
+          existing.referenceId === evidence.referenceId &&
+          existing.provider === evidence.provider &&
+          existing.network === evidence.network &&
+          existing.transactionHash === evidence.transactionHash &&
+          existing.signerAccountId === evidence.signerAccountId &&
+          existing.receiverAccountId === evidence.receiverAccountId &&
+          existing.assetId === evidence.assetId &&
+          existing.amountAtomic.toFixed(0) === evidence.amountAtomic &&
+          existing.evidenceDigest === evidence.evidenceDigest
+        ) {
+          return structuredClone(evidence);
+        }
         throw new ProviderAdapterError(
           'TRANSFER_EVIDENCE_REPLAY',
           'Transaction hash or transfer reference was already claimed',

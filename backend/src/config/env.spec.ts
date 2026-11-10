@@ -79,6 +79,16 @@ describe('environment safety', () => {
     });
   });
 
+  it('allows payroll payout only with both live and testnet transfer gates', () => {
+    expect(
+      parseEnvironment({
+        LIVE_TRANSFERS_ENABLED: 'true',
+        NEAR_TESTNET_TRANSFERS_ENABLED: 'true',
+        FEATURE_PAYROLL_BATCH_PAYOUT: 'true',
+      }),
+    ).toMatchObject({ FEATURE_PAYROLL_BATCH_PAYOUT: true });
+  });
+
   it('rejects ambiguous Intents credentials', () => {
     expect(() =>
       parseEnvironment({
@@ -142,6 +152,32 @@ describe('environment safety', () => {
       AI_CFO_PROVIDER: 'near-ai',
       NEAR_AI_CFO_ENABLED: true,
     });
+  });
+
+  it('enables private AI only for the direct provider with an approved deployment', () => {
+    const required = {
+      FEATURE_PRIVATE_AI: 'true',
+      PRIVATE_AI_PROVIDER: 'near-ai',
+      NEAR_AI_API_KEY: 'server-only-test-key',
+      ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 1).toString('base64'),
+      NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: 'a'.repeat(64),
+    };
+    expect(parseEnvironment(required)).toMatchObject({
+      FEATURE_PRIVATE_AI: true,
+      NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: ['a'.repeat(64)],
+    });
+    expect(() =>
+      parseEnvironment({
+        ...required,
+        NEAR_AI_BASE_URL: 'https://near-ai-proxy.example.test/v1',
+      }),
+    ).toThrow('Invalid configuration: FEATURE_PRIVATE_AI');
+    expect(() =>
+      parseEnvironment({
+        ...required,
+        NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: 'not-a-digest',
+      }),
+    ).toThrow('Invalid configuration: NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS');
   });
 
   it('requires both adapter and global gates for wet or testnet transfers', () => {
