@@ -7,6 +7,8 @@ import styles from "@/app/app.module.css";
 import { HelloNearContract } from "@/config";
 
 import { useNearWallet } from "@/providers/near-provider";
+import { StateToast } from "@/components/ui/state-toast";
+import { toast } from "sonner";
 
 export default function HelloNear() {
   const { signedAccountId, viewFunction, callFunction } = useNearWallet();
@@ -36,6 +38,7 @@ export default function HelloNear() {
         method: "get_greeting",
       });
       setGreeting(String(updated));
+      toast.success("Greeting saved.");
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Unable to save greeting",
@@ -83,7 +86,7 @@ export default function HelloNear() {
           <p className="m-0"> Please login to change the greeting </p>
         </div>
       </div>
-      {error && <p role="alert">{error}</p>}
+      <StateToast id="hello-near-error" message={error} />
       <Cards />
     </main>
   );

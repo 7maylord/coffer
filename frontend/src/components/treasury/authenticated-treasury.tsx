@@ -11,6 +11,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
 import { Modal } from "@/components/coffer/workspace";
 import { PolicyContractDeployment } from "@/components/treasury/policy-contract-deployment";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -240,11 +241,8 @@ function IntentsAssetDiscovery() {
           {discovery.testOnly ? "test only" : "live provider"}
         </p>
       )}
-      {error ? (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      ) : loading ? (
+      <StateToast id="asset-discovery-error" message={error} />
+      {loading ? (
         <p className="api-empty">Discovering current provider asset IDs…</p>
       ) : discovery?.assets.length ? (
         <>
@@ -721,11 +719,7 @@ function TreasuryJourney({ view }: { view: View }) {
         </div>
       </header>
 
-      {error && !editor && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="treasury-error" message={error} />
 
       {view === "treasury" ? (
         <>
@@ -1165,11 +1159,6 @@ function TreasuryJourney({ view }: { view: View }) {
               decision, and digest on the server. Editing creates a new revision
               and clears quorum.
             </p>
-            {error && (
-              <p className="form-alert" role="alert">
-                {error}
-              </p>
-            )}
             <div className="modal-actions">
               <button
                 type="button"
@@ -1232,11 +1221,6 @@ function TreasuryJourney({ view }: { view: View }) {
               The fixed recipient commitment permits only the 50/30/20 internal
               split.
             </p>
-            {error && (
-              <p className="form-alert" role="alert">
-                {error}
-              </p>
-            )}
             <div className="modal-actions">
               <button
                 type="button"

@@ -12,6 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   initialDemo,
   pages,
@@ -167,13 +168,11 @@ export function Workspace({
           activity: [],
         },
   );
-  const [toast, setToast] = useState("");
   const [command, setCommand] = useState(false);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const basePath = mode === "demo" ? "/demo" : "";
   const href = (page: PageId) => `${basePath}/${page}`;
   const currentPage = pages.find((page) => pathname === href(page.id));
@@ -188,9 +187,7 @@ export function Workspace({
     (item) => item.status === "Needs review",
   ).length;
   function notify(message: string) {
-    setToast(message);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(""), 4500);
+    toast.success(message);
   }
   function record(
     title: string,
@@ -216,7 +213,6 @@ export function Workspace({
     document.addEventListener("keydown", handler);
     return () => {
       document.removeEventListener("keydown", handler);
-      if (timer.current) clearTimeout(timer.current);
     };
   }, []);
   useEffect(() => {
@@ -455,25 +451,6 @@ export function Workspace({
             </div>
           </Modal>
         )}
-        <div
-          className={`toast ${toast ? "visible" : ""}`}
-          role="status"
-          aria-live="polite"
-        >
-          {toast && (
-            <>
-              <Icon name="check" size={18} />
-              {toast}
-              <button
-                className="icon-button"
-                onClick={() => setToast("")}
-                aria-label="Dismiss notification"
-              >
-                <Icon name="close" size={16} />
-              </button>
-            </>
-          )}
-        </div>
       </div>
     </Context.Provider>
   );

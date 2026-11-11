@@ -71,12 +71,15 @@ test("invoice draft, validation, filtering, preview, and CSV export", async ({
   await page.getByLabel("What is it for?").fill("Synthetic brand design");
   await page.getByLabel("Amount · USD").fill("10.001");
   await page.getByRole("button", { name: "Create draft", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+  await expect(page.locator("[data-sonner-toast]")).toContainText(
     "two decimal places",
   );
   await page.getByLabel("Amount · USD").fill("100.01");
   await page.getByRole("button", { name: "Create draft", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(
+    page.locator('[data-sonner-toast][data-type="success"]'),
+  ).toContainText("Your invoice is drafted");
   await page.getByLabel("Find an invoice").fill("Acme Studio");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody")).toContainText("$100.01");
@@ -99,9 +102,7 @@ test("treasury proposals flow into a single demo review without moving money", a
   await page.getByRole("button", { name: "Propose allocation" }).click();
   await page.getByLabel("Total allocation · USD").fill("70000");
   await page.getByRole("button", { name: "Create proposal" }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "exceeds",
-  );
+  await expect(page.locator("[data-sonner-toast]")).toContainText("exceeds");
   await page.getByLabel("Total allocation · USD").fill("100.01");
   await expect(page.getByRole("dialog")).toContainText("$20.01");
   await page.getByRole("button", { name: "Create proposal" }).click();
@@ -174,7 +175,7 @@ test("command palette, motion preference, settings and reset", async ({
     .click();
   await page.getByLabel("Workspace name").fill("Northstar Collective");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("status")).toContainText("updated");
+  await expect(page.locator("[data-sonner-toast]")).toContainText("updated");
   await page.getByRole("switch", { name: "Reduce motion" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-motion", "reduced");
   await page.getByRole("button", { name: "Start fresh" }).click();

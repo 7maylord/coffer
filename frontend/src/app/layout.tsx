@@ -1,6 +1,7 @@
 import "@/app/globals.css";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: {
@@ -14,7 +15,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster
+          closeButton
+          richColors
+          position="top-right"
+          visibleToasts={4}
+          toastOptions={{ duration: 5000 }}
+        />
+      </body>
     </html>
   );
 }

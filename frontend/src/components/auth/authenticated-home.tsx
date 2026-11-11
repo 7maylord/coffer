@@ -11,6 +11,8 @@ import {
   type OrganizationMember,
 } from "@/lib/coffer-api";
 import { invitationUrl } from "@/lib/invitation";
+import { StateToast } from "@/components/ui/state-toast";
+import { toast } from "sonner";
 
 export function AuthenticatedOverview() {
   const { currentOrganization, session } = useAuth();
@@ -142,6 +144,7 @@ export function AuthenticatedSettings() {
         member.userId,
       );
       await loadMembers();
+      toast.success(`${member.displayName} was removed from the workspace.`);
     } catch {
       setMessage("Coffer could not remove that member.");
     }
@@ -213,11 +216,7 @@ export function AuthenticatedSettings() {
             {busy ? "Creating invitation…" : "Create invitation"}
           </button>
         </form>
-        {message && (
-          <p className="form-alert" role="alert">
-            {message}
-          </p>
-        )}
+        <StateToast id="settings-error" message={message} />
         {invite && (
           <div className="invite-result" aria-live="polite">
             <strong>Invitation ready</strong>
@@ -230,7 +229,14 @@ export function AuthenticatedSettings() {
             <button
               className="button light"
               type="button"
-              onClick={() => void navigator.clipboard.writeText(link)}
+              onClick={() =>
+                void navigator.clipboard
+                  .writeText(link)
+                  .then(() => toast.success("Invitation link copied."))
+                  .catch(() =>
+                    toast.error("Could not copy the invitation link."),
+                  )
+              }
             >
               Copy invitation link
             </button>

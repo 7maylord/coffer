@@ -15,6 +15,7 @@ import {
 import { Icon, type IconName } from "./icon";
 import { useDemo, Modal, Badge, WorkspaceLink } from "./workspace";
 import { CashflowChart, AllocationRing } from "./charts";
+import { StateToast } from "@/components/ui/state-toast";
 
 function Heading({
   eyebrow,
@@ -402,6 +403,7 @@ function Invoices() {
         `${client} · local sample only`,
         "Invoices",
       );
+      setError("");
       setCreate(false);
       setFilter("All invoices");
       notify("Your invoice is drafted. No invoice was sent.");
@@ -437,6 +439,7 @@ function Invoices() {
           Create invoice
         </button>
       </Heading>
+      <StateToast id="demo-invoice-error" message={error} />
       <div className="stats-row">
         <Stat
           label="Outstanding"
@@ -545,11 +548,6 @@ function Invoices() {
                 />
               </label>
             </div>
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            )}
             <div className="modal-actions">
               <button
                 type="button"
@@ -632,6 +630,7 @@ function Treasury() {
         "50% team · 30% operations · 20% reserves",
         "Treasury",
       );
+      setError("");
       setOpen(false);
       notify("Allocation sent for review. No funds reserved or moved.");
     } catch (error) {
@@ -660,6 +659,7 @@ function Treasury() {
           Propose allocation
         </button>
       </Heading>
+      <StateToast id="demo-treasury-error" message={error} />
       <div className="treasury-grid">
         <section className="panel treasury-summary">
           <div className="panel-heading">
@@ -768,11 +768,6 @@ function Treasury() {
                 ),
               )}
             </div>
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            )}
             <button className="button dark" type="submit">
               Create proposal <Icon name="arrow" size={17} />
             </button>
@@ -1000,6 +995,7 @@ function Cfo() {
         }
         description="A little clarity for the decisions that deserve it."
       />
+      <StateToast id="demo-cfo-error" message={error} />
       <div className="cfo-layout">
         <section className="cfo-intro">
           <div className="sage-orb" aria-hidden="true">
@@ -1061,11 +1057,6 @@ function Cfo() {
                 50 / 30 / 20 allocation rule
               </span>
             </div>
-            {error && (
-              <p role="alert" className="form-error">
-                {error}
-              </p>
-            )}
             <button className="button dark" type="submit">
               <Icon name="spark" size={17} />
               {generated ? "Reconsider allocation" : "Explore an allocation"}

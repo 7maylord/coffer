@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -215,11 +216,7 @@ export function AuthenticatedCfo() {
         </div>
       </header>
 
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="cfo-error" message={error} />
 
       <section
         className="automation-truth-strip"
@@ -629,11 +626,7 @@ export function AuthenticatedAgents() {
         </div>
       </header>
 
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="agent-error" message={error} />
 
       <section
         className="agent-gate"

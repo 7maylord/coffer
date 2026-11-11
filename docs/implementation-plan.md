@@ -1560,3 +1560,23 @@ and immutable approval. Wallet-signed payout preparation requires a separate
 approved `near:testnet:*` manifest; the existing mock manifest is not silently
 rewritten. The 2026-11-11 regression evidence is 341 backend unit tests, 14 API
 E2E tests, strict backend typecheck/lint, and the focused payroll browser path.
+
+### Unified notification checkpoint — 2026-11-11
+
+COF-601, FR-AUD-003/004 and Gate G5 now use Sonner 2.0.8 for transient frontend
+action results and API errors across authentication, organizations, invoices,
+treasury, operations, payroll, automation, the public invoice flow and the
+separate demo workspace. One global toaster provides consistent, dismissible
+desktop and mobile feedback; the previous demo-only custom toast and CSS were
+removed. Actionable invitation links, destructive confirmations, native form
+constraints and durable security/privacy/settlement disclosures intentionally
+remain in context because hiding them in an expiring toast would make the flow
+less safe or accessible. No API, OpenAPI, provider, custody or payment behavior
+changed, so no ADR was required.
+
+Fresh Node 24.22.1 evidence: frontend strict typecheck, ESLint, formatting, the
+production build and all 11 frontend unit tests pass. The complete Chromium
+suite passes 79 tests across desktop and mobile with the existing intentional
+desktop skip for the mobile-only 320 px assertion. The dependency gate reports
+no high or critical advisory; one pre-existing unpatched low `elliptic`
+advisory remains through the Privy NEAR connector and is unrelated to Sonner.

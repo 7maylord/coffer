@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Icon, Mark } from "@/components/coffer/icon";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -412,11 +413,7 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
               )}
             </div>
           )}
-          {error && (
-            <p className="form-alert" role="alert">
-              {error}
-            </p>
-          )}
+          <StateToast id="public-invoice-error" message={error} />
         </aside>
       </section>
       <footer className="payer-footer">

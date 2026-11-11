@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
 import { Modal } from "@/components/coffer/workspace";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -380,11 +381,8 @@ function FinancePayroll() {
         </div>
       </header>
 
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="payroll-error" message={error} />
+      <StateToast id="payroll-manual-entry-error" message={manualEntryError} />
 
       <section
         className="payroll-truth-strip"
@@ -865,11 +863,6 @@ function FinancePayroll() {
               before building payroll.
             </p>
           )}
-          {manualEntryError && (
-            <p className="form-alert" role="alert">
-              {manualEntryError}
-            </p>
-          )}
           <div className="payroll-manual-lines" aria-live="polite">
             {manualLines.map((line) => (
               <div key={line.userId}>
@@ -956,11 +949,7 @@ function EmployeePayslips() {
           </p>
         </div>
       </header>
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="payslip-error" message={error} />
       <section className="payroll-truth-strip">
         <div>
           <span>Scope</span>

@@ -9,6 +9,8 @@ import { Icon, Mark } from "@/components/coffer/icon";
 import { pages, type PageId } from "@/lib/demo";
 import { canAccessPage } from "@/lib/workspace-access";
 import { invitationToken } from "@/lib/invitation";
+import { StateToast } from "@/components/ui/state-toast";
+import { toast } from "sonner";
 
 function AuthFrame({ children }: PropsWithChildren) {
   return (
@@ -40,11 +42,7 @@ function SignIn() {
         Your wallet signs a one-time NEP-413 message. It does not send a
         transaction, add an access key, or move funds.
       </p>
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="sign-in-error" message={error} />
       <div className="auth-actions">
         <button
           className="button dark"
@@ -108,11 +106,7 @@ function OrganizationSetup() {
         Signed in as <strong>{session?.wallets[0]?.accountId}</strong>. Your
         first workspace makes you its owner.
       </p>
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="workspace-setup-error" message={error} />
       <form className="auth-form" onSubmit={(event) => void submit(event)}>
         <label>
           Workspace name
@@ -173,6 +167,7 @@ function InvitationAcceptance({
     try {
       await acceptInvitation(token);
       clear();
+      toast.success("Workspace joined.");
     } catch {
       setFailure(
         "This invitation could not be accepted. It may have expired, already been used, or belong to another NEAR account.",
@@ -190,11 +185,7 @@ function InvitationAcceptance({
         Signed in as <strong>{session?.wallets[0]?.accountId}</strong>. The
         invitation will only work for the NEAR account selected by its owner.
       </p>
-      {(failure || error) && (
-        <p className="form-alert" role="alert">
-          {failure || error}
-        </p>
-      )}
+      <StateToast id="invitation-error" message={failure || error} />
       <div className="auth-actions">
         <button className="button dark" disabled={busy} onClick={accept}>
           {busy ? "Joining workspace…" : "Accept invitation"}

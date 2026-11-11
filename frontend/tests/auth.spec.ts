@@ -44,7 +44,7 @@ test("logged-out and unavailable sessions fail closed", async ({ page }) => {
     route.fulfill({ status: 503 }),
   );
   await page.reload();
-  await expect(page.locator(".form-alert")).toContainText(
+  await expect(page.locator("[data-sonner-toast]")).toContainText(
     "could not reach its API",
   );
   await expect(

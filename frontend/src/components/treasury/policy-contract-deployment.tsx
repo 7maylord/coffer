@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -289,11 +290,7 @@ export function PolicyContractDeployment({
         </div>
       ) : null}
 
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="policy-contract-error" message={error} />
     </section>
   );
 }

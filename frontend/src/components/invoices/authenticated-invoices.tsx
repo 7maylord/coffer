@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
 import { Modal } from "@/components/coffer/workspace";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -269,11 +270,7 @@ export function AuthenticatedInvoices() {
         </article>
       </div>
 
-      {error && !editor && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
+      <StateToast id="invoice-error" message={error} />
       <section className="panel api-invoice-panel" aria-busy={loading}>
         <div className="panel-heading">
           <div>
@@ -416,11 +413,6 @@ export function AuthenticatedInvoices() {
               Values become integer atomic units. The draft remains editable
               until issuance.
             </p>
-            {error && (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            )}
             <div className="modal-actions">
               <button
                 type="button"

@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Icon } from "@/components/coffer/icon";
+import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
@@ -179,16 +180,8 @@ export function AuthenticatedOperations() {
         </div>
       </header>
 
-      {error && (
-        <p className="form-alert" role="alert">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p className="automation-result" role="status">
-          {notice}
-        </p>
-      )}
+      <StateToast id="operations-error" message={error} />
+      <StateToast id="operations-notice" kind="success" message={notice} />
 
       <section className="operations-metrics" aria-label="Operations metrics">
         <article>

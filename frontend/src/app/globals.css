@@ -3595,45 +3595,6 @@ tbody tr:hover {
 .empty-state p {
   font-size: 11px;
 }
-.toast {
-  position: fixed;
-  bottom: 25px;
-  left: calc(50% + 114px);
-  transform: translate(-50%, 20px);
-  opacity: 0;
-  pointer-events: none;
-  background: #38372f;
-  color: #fff7e8;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: calc(100vw - 40px);
-  padding: 13px 16px;
-  border-radius: 8px;
-  font-size: 11px;
-  line-height: 1.5;
-  z-index: 50;
-  box-shadow: 0 8px 25px #0002;
-  transition:
-    transform 0.2s,
-    opacity 0.2s;
-}
-.toast.visible {
-  opacity: 1;
-  transform: translate(-50%, 0);
-  pointer-events: auto;
-}
-.toast > svg {
-  color: #bccda2;
-}
-.toast .icon-button {
-  color: #e9ddc8;
-  width: 24px;
-  height: 24px;
-}
-.toast .icon-button:hover {
-  background: #ffffff15;
-}
 @keyframes asterisk-turn {
   to {
     transform: rotate(360deg);
@@ -3804,9 +3765,6 @@ tbody tr:hover {
   }
   .chapter-card p {
     font-size: 11px;
-  }
-  .toast {
-    left: calc(50% + 102px);
   }
 }
 @media (max-width: 1000px) {
@@ -4111,9 +4069,6 @@ tbody tr:hover {
   }
   .settings-aside h2 {
     font-size: 29px;
-  }
-  .toast {
-    left: calc(50% + 94px);
   }
 }
 @media (max-width: 760px) {
@@ -4506,10 +4461,6 @@ tbody tr:hover {
   }
   .settings-layout {
     grid-template-columns: 1.2fr 1fr;
-  }
-  .toast {
-    left: 50%;
-    width: max-content;
   }
   .settings-aside h2 {
     font-size: 29px;
