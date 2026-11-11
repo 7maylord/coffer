@@ -528,6 +528,13 @@ function FinancePayroll() {
                   Prepare wallet payouts
                 </button>
               </div>
+              {!selected.assetId.startsWith("near:testnet:") && (
+                <p className="api-empty" role="status">
+                  Mock batches stop after review and approval. Create a new
+                  batch using Native testnet NEAR to prepare wallet-signed
+                  payouts.
+                </p>
+              )}
               {payout && (
                 <section
                   className="payroll-analysis"

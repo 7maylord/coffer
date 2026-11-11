@@ -229,6 +229,11 @@ test("finance reviews exact encrypted payroll evidence and approves its manifest
   await expect(
     page.getByText("Encrypted at rest", { exact: false }),
   ).toBeVisible();
+  await expect(
+    page.getByText("Mock batches stop after review and approval", {
+      exact: false,
+    }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Run local rules" }).click();
   await expect(page.getByText("NOT_REQUESTED")).toBeVisible();
   await page.getByRole("button", { name: "Try verified private AI" }).click();

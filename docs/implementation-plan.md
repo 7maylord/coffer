@@ -1545,3 +1545,18 @@ checks, durable payout exception operations, KMS-backed keys and rotation,
 backup/restore, retention/residency/legal payroll controls, independent human
 quorum, alerting/SLO evidence, and any mainnet/custody approval. Coffer must not
 be represented as production-ready until those release gates close.
+
+### Agent response and payroll operator checkpoint — 2026-11-11
+
+COF-403, COF-501/503, T-AGT-01/04/05 and Gate G4 now keep the agent-commerce
+response boundary consistent with its strict OpenAPI contract. Agent, offer and
+purchase mappers return only declared public fields instead of spreading Prisma
+rows containing database-only timestamps. The database-backed automation flow
+asserts those fields cannot escape and passes through creation, offer, policy,
+approval and mock fulfillment.
+
+Payroll now explains that a `mock:*` manifest intentionally stops after review
+and immutable approval. Wallet-signed payout preparation requires a separate
+approved `near:testnet:*` manifest; the existing mock manifest is not silently
+rewritten. The 2026-11-11 regression evidence is 341 backend unit tests, 14 API
+E2E tests, strict backend typecheck/lint, and the focused payroll browser path.

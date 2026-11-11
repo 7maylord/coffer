@@ -237,6 +237,8 @@ describe('J-02/J-03 automation API (e2e)', () => {
         expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       })
       .expect(201);
+    expect(agent.body).not.toHaveProperty('createdAt');
+    expect(agent.body).not.toHaveProperty('updatedAt');
 
     await request(app.getHttpServer())
       .post(`/v1/orgs/${organizationId}/policies`)
@@ -275,6 +277,7 @@ describe('J-02/J-03 automation API (e2e)', () => {
         classificationProfile: 'financial',
       })
       .expect(201);
+    expect(offer.body).not.toHaveProperty('createdAt');
     const purchase = await request(app.getHttpServer())
       .post(
         `/v1/orgs/${organizationId}/agents/${agent.body.id as string}/purchase-proposals`,
@@ -283,6 +286,8 @@ describe('J-02/J-03 automation API (e2e)', () => {
       .set('X-CSRF-Token', csrfToken)
       .send({ offerId: offer.body.id })
       .expect(201);
+    expect(purchase.body).not.toHaveProperty('createdAt');
+    expect(purchase.body).not.toHaveProperty('updatedAt');
     expect(purchase.body.status).toBe('AWAITING_APPROVAL');
 
     const workspace = await request(app.getHttpServer())

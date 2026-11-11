@@ -527,11 +527,22 @@ function mapAgent(value: {
   version: number;
 }): AgentView {
   return {
-    ...value,
+    id: value.id,
+    organizationId: value.organizationId,
+    ownerUserId: value.ownerUserId,
+    purpose: value.purpose,
+    provider: value.provider,
+    status: value.status,
     allowedActions: value.allowedActions as string[],
+    assetId: value.assetId,
+    chainId: value.chainId,
     maxAmountAtomic: value.maxAmountAtomic.toFixed(0),
     rollingBudgetAtomic: value.rollingBudgetAtomic.toFixed(0),
+    rollingWindowSeconds: value.rollingWindowSeconds,
     vendorAllowlist: value.vendorAllowlist as string[],
+    expiresAt: value.expiresAt,
+    revokedAt: value.revokedAt,
+    version: value.version,
   };
 }
 
@@ -552,10 +563,20 @@ function mapOffer(value: {
   expiresAt: Date;
 }): ServiceOfferView {
   return {
-    ...value,
+    id: value.id,
+    organizationId: value.organizationId,
+    agentId: value.agentId,
+    vendorId: value.vendorId,
+    externalOfferId: value.externalOfferId,
     serviceCode: value.serviceCode,
+    requestDigest: value.requestDigest,
+    offerDigest: value.offerDigest,
+    assetId: value.assetId,
+    chainId: value.chainId,
     priceAtomic: value.priceAtomic.toFixed(0),
+    recipientCommitment: value.recipientCommitment,
     controlledTerms: value.controlledTerms as VendorOffer['controlledTerms'],
+    expiresAt: value.expiresAt,
   };
 }
 
@@ -574,8 +595,18 @@ function mapPurchase(value: {
   version: number;
 }): PurchaseView {
   return {
-    ...value,
+    id: value.id,
+    organizationId: value.organizationId,
+    agentId: value.agentId,
+    offerId: value.offerId,
+    financialProposalId: value.financialProposalId,
+    status: value.status,
+    requestDigest: value.requestDigest,
+    failureCode: value.failureCode,
+    mockPaymentReference: value.mockPaymentReference,
     deliverable: value.deliverable as Record<string, unknown> | null,
+    completedAt: value.completedAt,
+    version: value.version,
   };
 }
 
