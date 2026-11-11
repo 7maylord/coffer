@@ -231,6 +231,12 @@ test("owner creates a wallet-targeted employee invitation", async ({
   });
 
   await page.goto("/settings");
+  const details = page.getByLabel("Workspace details");
+  await expect(details.getByText("Forma Studio", { exact: true })).toBeVisible();
+  await expect(details.getByText("forma-studio", { exact: true })).toBeVisible();
+  await expect(details.getByText("jamie.testnet", { exact: true })).toBeVisible();
+  await expect(details.getByText("OWNER", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sample workspace preferences")).toHaveCount(0);
   await page.getByLabel("Employee NEAR account").fill("alex.testnet");
   await page.getByRole("button", { name: "Create invitation" }).click();
   await expect(page.getByText("Invitation ready")).toBeVisible();

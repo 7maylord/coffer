@@ -166,27 +166,38 @@ export function AuthenticatedSettings() {
           <p>These values come from your verified tenant membership.</p>
         </div>
       </header>
-      <section className="panel settings-panel">
-        <div className="setting-readonly">
-          <span>Name</span>
-          <strong>{currentOrganization.name}</strong>
+      <section
+        className="panel organization-profile"
+        aria-label="Workspace details"
+      >
+        <div className="organization-profile-heading">
+          <span className="eyebrow">WORKSPACE PROFILE</span>
+          <span className="verified-membership">
+            <i aria-hidden="true" /> Verified membership
+          </span>
         </div>
-        <div className="setting-readonly">
-          <span>URL key</span>
-          <strong>{currentOrganization.slug}</strong>
-        </div>
-        <div className="setting-readonly">
-          <span>NEAR account</span>
-          <strong>{session.wallets[0]?.accountId ?? "—"}</strong>
-        </div>
-        <div className="setting-readonly">
-          <span>Role</span>
-          <strong>{currentOrganization.role.replaceAll("_", " ")}</strong>
-        </div>
-        <p className="quiet-note">
-          Sample workspace preferences and reset controls are kept separate from
-          authenticated settings.
-        </p>
+        <dl className="organization-details">
+          <div>
+            <dt>Name</dt>
+            <dd>{currentOrganization.name}</dd>
+          </div>
+          <div>
+            <dt>URL key</dt>
+            <dd>{currentOrganization.slug}</dd>
+          </div>
+          <div>
+            <dt>NEAR account</dt>
+            <dd>{session.wallets[0]?.accountId ?? "—"}</dd>
+          </div>
+          <div>
+            <dt>Role</dt>
+            <dd>
+              <span className="organization-role">
+                {currentOrganization.role.replaceAll("_", " ")}
+              </span>
+            </dd>
+          </div>
+        </dl>
       </section>
       <section className="panel settings-panel member-panel">
         <span className="eyebrow">TEAM ACCESS</span>
