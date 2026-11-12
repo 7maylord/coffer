@@ -116,6 +116,9 @@ describe('B-10 audit and operator persistence invariants', () => {
     });
     expect(page.integrity.eventCount).toBeGreaterThanOrEqual(4);
     expect(page.events[0]?.eventHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(page.events.every((event) => !('organizationId' in event))).toBe(
+      true,
+    );
 
     await expect(
       operations.audit(otherOrganizationId, {

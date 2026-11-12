@@ -140,7 +140,7 @@ export const cfoWorkspaceSchema: SchemaObject = {
     nearAiEnabled: { type: 'boolean' },
     attestationVerification: {
       type: 'string',
-      enum: ['not-implemented'],
+      enum: ['not-requested', 'provider-tee'],
     },
     proposals: { type: 'array', items: cfoProposalSchema },
   },

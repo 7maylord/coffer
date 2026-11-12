@@ -4,8 +4,6 @@ describe('environment safety', () => {
   it.each([
     { SETTLEMENT_MODE: 'near-intents' },
     { SETTLEMENT_MODE: 'near-testnet' },
-    { NODE_ENV: 'production' },
-    { API_HOST: '0.0.0.0' },
     { API_PORT: '0' },
     { API_PORT: '65536' },
     { API_PORT: '1.5' },
@@ -39,6 +37,23 @@ describe('environment safety', () => {
 
     expect(result.SETTLEMENT_MODE).toBe('mock');
     expect(result.LIVE_TRANSFERS_ENABLED).toBe(false);
+  });
+
+  it('supports production hosting without enabling fund movement', () => {
+    expect(
+      parseEnvironment({ NODE_ENV: 'production', API_HOST: '0.0.0.0' }),
+    ).toMatchObject({
+      NODE_ENV: 'production',
+      API_HOST: '0.0.0.0',
+      LIVE_TRANSFERS_ENABLED: false,
+    });
+  });
+
+  it('uses the hosting platform PORT when API_PORT is absent', () => {
+    expect(parseEnvironment({ PORT: '8080' }).API_PORT).toBe(8080);
+    expect(parseEnvironment({ PORT: '8080', API_PORT: '4100' }).API_PORT).toBe(
+      4100,
+    );
   });
 
   it('requires the reviewed factory, provisioner and policy hashes together', () => {
@@ -147,6 +162,7 @@ describe('environment safety', () => {
         AI_CFO_PROVIDER: 'near-ai',
         NEAR_AI_CFO_ENABLED: 'true',
         NEAR_AI_API_KEY: 'server-only-test-key',
+        NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: 'a'.repeat(64),
       }),
     ).toMatchObject({
       AI_CFO_PROVIDER: 'near-ai',

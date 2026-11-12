@@ -6,10 +6,13 @@ import {
   Prisma,
   PrismaClient,
 } from '@prisma/client';
-import { createClient, type RedisClientType } from 'redis';
 import { z } from 'zod';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
 import { LedgerService } from '../treasury/ledger.service.js';
+import {
+  SETTLEMENT_OPERATIONS,
+  type SettlementOperations,
+} from './settlement.store.js';
 
 type ClaimedEvent = {
   id: string;
@@ -19,10 +22,6 @@ type ClaimedEvent = {
   payload: unknown;
   claimToken: string;
 };
-
-export interface SettlementQueuePublisher {
-  publish(queue: string, payload: string): Promise<void>;
-}
 
 const postingPayloadSchema = z
   .object({
@@ -35,45 +34,26 @@ const postingPayloadSchema = z
   .strict();
 
 @Injectable()
-export class RedisSettlementQueue
-  implements SettlementQueuePublisher, OnModuleDestroy
-{
-  private client?: RedisClientType;
-
-  constructor(
-    @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
-  ) {}
-
-  async publish(queue: string, payload: string): Promise<void> {
-    if (!this.client) {
-      this.client = createClient({ url: this.environment.REDIS_URL });
-      this.client.on('error', () => {
-        /* worker retry state stays in PostgreSQL */
-      });
-    }
-    if (!this.client.isOpen) await this.client.connect();
-    await this.client.rPush(queue, payload);
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.client?.isOpen) await this.client.quit();
-  }
-}
-
-@Injectable()
-export class SettlementOutboxWorker implements OnModuleDestroy {
+export class SettlementOutboxProcessor implements OnModuleDestroy {
   private readonly prisma: PrismaClient;
+  private stopping = false;
+  private loop?: Promise<void>;
 
   constructor(
     @Inject(APP_ENVIRONMENT) environment: AppEnvironment,
-    private readonly ledger: LedgerService,
-    private readonly queue: RedisSettlementQueue,
+    @Inject(LedgerService) private readonly ledger: LedgerService,
+    @Inject(SETTLEMENT_OPERATIONS)
+    private readonly settlement: SettlementOperations,
   ) {
     this.prisma = new PrismaClient({
       datasourceUrl: environment.DATABASE_URL,
       log: [],
       errorFormat: 'minimal',
     });
+  }
+
+  start(): void {
+    this.loop ??= this.run();
   }
 
   async drainOnce(now = new Date()): Promise<boolean> {
@@ -147,20 +127,21 @@ export class SettlementOutboxWorker implements OnModuleDestroy {
       await this.postLedger(event, now);
       return;
     }
-    const queue =
-      event.topic === 'settlement.reconciliation.requested'
-        ? 'coffer:settlement:reconciliation'
-        : 'coffer:settlement:poll';
-    await this.queue.publish(
-      queue,
-      JSON.stringify({
-        eventId: event.id,
-        organizationId: event.organizationId,
-        topic: event.topic,
-        aggregateId: event.aggregateId,
-        payload: event.payload,
-      }),
-    );
+    const payload = z
+      .object({ paymentId: z.string().uuid() })
+      .passthrough()
+      .parse(event.payload);
+    await this.settlement.poll(event.organizationId, payload.paymentId);
+  }
+
+  private async run(): Promise<void> {
+    while (!this.stopping) {
+      try {
+        if (!(await this.drainOnce())) await delay(1000);
+      } catch {
+        await delay(1000);
+      }
+    }
   }
 
   private async postLedger(event: ClaimedEvent, now: Date): Promise<void> {
@@ -211,6 +192,12 @@ export class SettlementOutboxWorker implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    this.stopping = true;
+    await this.loop;
     await this.prisma.$disconnect();
   }
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

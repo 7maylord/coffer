@@ -371,7 +371,16 @@ function mapAuditEvent(value: {
   createdAt: Date;
 }): AuditEventView {
   return {
-    ...value,
+    id: value.id,
+    sequence: value.sequence,
+    actorId: value.actorId,
+    eventType: value.eventType,
+    entityType: value.entityType,
+    entityId: value.entityId,
+    correlationId: value.correlationId,
+    traceId: value.traceId,
+    previousHash: value.previousHash,
+    eventHash: value.eventHash,
     metadata: redact(value.metadata),
     createdAt: value.createdAt.toISOString(),
   };

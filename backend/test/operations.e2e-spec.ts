@@ -149,6 +149,11 @@ describe('B-10 audit and operator API (e2e)', () => {
       .expect(200);
     expect(audit.body.integrity).toMatchObject({ verified: true });
     expect(audit.body.events.length).toBeGreaterThan(0);
+    expect(
+      audit.body.events.every(
+        (event: Record<string, unknown>) => !('organizationId' in event),
+      ),
+    ).toBe(true);
 
     const dashboard = await request(app.getHttpServer())
       .get(`/v1/orgs/${organizationId}/operations/settlements`)

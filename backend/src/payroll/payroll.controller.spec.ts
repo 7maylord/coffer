@@ -159,6 +159,7 @@ describe('PayrollController', () => {
     ['PAYROLL_ACCESS_DENIED', ForbiddenException],
     ['PRIVATE_AI_DISABLED', ServiceUnavailableException],
     ['PRIVATE_AI_UNAVAILABLE', ServiceUnavailableException],
+    ['PAYROLL_ENCRYPTION_UNAVAILABLE', ServiceUnavailableException],
     ['PAYROLL_PAYOUT_DISABLED', ServiceUnavailableException],
     ['PAYROLL_DUPLICATE', ConflictException],
     ['PAYROLL_MANIFEST_MISMATCH', ConflictException],

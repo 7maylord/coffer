@@ -44,7 +44,7 @@ export type QuoteRequest = {
 export type SettlementQuote = QuoteRequest & {
   id: string;
   organizationId: string;
-  provider: 'mock';
+  provider: 'mock' | 'near-testnet';
   expectedAmountAtomic: string;
   expiresAt: string;
   requestDigest: string;
@@ -77,7 +77,7 @@ export type SettlementAttempt = {
   organizationId: string;
   quoteId: string;
   invoiceId?: string;
-  provider: 'mock';
+  provider: 'mock' | 'near-testnet';
   scenario: MockScenario;
   status: PaymentStatus;
   version: number;

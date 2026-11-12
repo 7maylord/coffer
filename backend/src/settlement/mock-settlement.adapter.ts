@@ -61,6 +61,20 @@ export class MockSettlementAdapter implements SettlementAdapter {
     string,
     { requestDigest: string; attemptId: string }
   >();
+
+  prepareInvoiceTransfer(): never {
+    throw new SettlementError(
+      'UNSUPPORTED_ROUTE',
+      'Direct invoice transfers require the NEAR adapter',
+    );
+  }
+
+  submitInvoiceTransfer(): never {
+    throw new SettlementError(
+      'UNSUPPORTED_ROUTE',
+      'Direct invoice transfers require the NEAR adapter',
+    );
+  }
   private readonly observedEvents = new Set<string>();
 
   constructor(

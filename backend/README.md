@@ -1,9 +1,10 @@
 # Coffer backend
 
 The Coffer backend is an independent NestJS and Prisma project. It owns the API,
-worker-facing domain boundaries, database migrations, settlement adapters, and
-reconciliation logic. The frontend has its own package installation and does
-not share a pnpm workspace with this project.
+database migrations, settlement adapters, and reconciliation logic. Its durable
+outbox processor runs inside the API process, so no second worker service is
+required. The frontend has its own package installation and does not share a
+pnpm workspace with this project.
 
 The current implementation includes the B-01 foundation through the automated
 B-11 local hardening gate. B-04 supplies
@@ -28,6 +29,27 @@ LIVE_TRANSFERS_ENABLED=false
 ```
 
 No backend route signs or sends a blockchain transaction.
+
+## Railway and Vercel
+
+Deploy `backend` as one Railway service with PostgreSQL and Redis attached. Use
+`pnpm install --frozen-lockfile && pnpm prisma:generate && pnpm build` as the
+build command, `pnpm prisma:migrate:deploy && pnpm start:prod` as the start
+command, and `/health/ready` as the health check. Set:
+
+```text
+NODE_ENV=production
+API_HOST=0.0.0.0
+WEB_URL=https://<vercel-domain>
+DATABASE_URL=<railway-postgres-url>
+REDIS_URL=<railway-redis-url>
+```
+
+Railway's injected `PORT` is accepted automatically. Vercel's root directory is
+`frontend`; set its server-only `COFFER_API_URL` to the Railway HTTPS origin and
+set `NEXT_PUBLIC_PRIVY_APP_ID` only when Privy is enabled. Browser API requests
+remain same-origin through the Next.js rewrite, so session cookies are not
+shared directly across the Vercel/Railway origins.
 
 ## Deployed testnet contracts and integration status
 
@@ -134,7 +156,7 @@ pnpm --dir backend prisma:seed
 pnpm --dir backend dev
 ```
 
-The API and worker load `backend/.env` in development and test only. Deployed
+The API loads `backend/.env` in development and test only. Deployed
 environments must inject variables through their secret manager. The frontend
 never receives the Intents partner JWT or the factory provisioner key.
 

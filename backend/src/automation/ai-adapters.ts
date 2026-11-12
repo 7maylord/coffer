@@ -1,14 +1,16 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
+import {
+  nearAiDeploymentDigest,
+  NEAR_AI_INFERENCE_CLIENT,
+  type NearAiInferenceClient,
+} from '../payroll/near-ai-private.adapter.js';
 import {
   type CfoInferenceAdapter,
   type CfoInferenceInput,
   type CfoInferenceResult,
-  NEAR_AI_FETCH,
 } from './automation.types.js';
-
-type FetchLike = typeof fetch;
 
 @Injectable()
 export class MockCfoInferenceAdapter implements CfoInferenceAdapter {
@@ -61,70 +63,66 @@ const completionSchema = z
 export class NearAiCfoInferenceAdapter implements CfoInferenceAdapter {
   readonly provider = 'near-ai-cloud';
   readonly model: string;
-  private readonly fetcher: FetchLike;
 
   constructor(
     @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
-    @Optional() @Inject(NEAR_AI_FETCH) fetcher?: FetchLike,
+    @Inject(NEAR_AI_INFERENCE_CLIENT)
+    private readonly client: NearAiInferenceClient,
   ) {
     this.model = environment.NEAR_AI_MODEL;
-    this.fetcher = fetcher ?? fetch;
   }
 
   async infer(input: CfoInferenceInput): Promise<CfoInferenceResult> {
     if (
       !this.environment.NEAR_AI_CFO_ENABLED ||
       this.environment.AI_CFO_PROVIDER !== 'near-ai' ||
-      !this.environment.NEAR_AI_API_KEY
+      !this.environment.NEAR_AI_API_KEY ||
+      this.environment.NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS.length === 0
     ) {
       throw new Error('NEAR AI CFO inference is disabled');
     }
-    const body = JSON.stringify({
+    const preflight = await this.client.verify(this.model);
+    if (preflight.models.length === 0) {
+      throw new Error('Model attestation preflight was not verified');
+    }
+    const request = {
       model: this.model,
       stream: false,
       temperature: 0,
+      max_tokens: 2_000,
+      response_format: { type: 'json_object' as const },
       messages: [
         {
-          role: 'system',
+          role: 'system' as const,
           content:
             'Return one JSON object only. Never request a payment, transfer, URL, tool call, account number, or policy override. Required shape: {"allocations":[{"category":string,"amountAtomic":positive integer string,"reason":string,"supportingRecordIds":string[],"confidenceBps":integer 0..10000,"uncertainty":string}],"summary":string}.',
         },
-        { role: 'user', content: JSON.stringify(input) },
+        { role: 'user' as const, content: JSON.stringify(input) },
       ],
-    });
-    const base = new URL(this.environment.NEAR_AI_BASE_URL);
-    let response: Response;
-    try {
-      response = await this.fetcher(
-        new URL(`${base.toString().replace(/\/$/, '')}/chat/completions`),
-        {
-          method: 'POST',
-          redirect: 'error',
-          signal: AbortSignal.timeout(10_000),
-          headers: {
-            accept: 'application/json',
-            'accept-encoding': 'identity',
-            authorization: `Bearer ${this.environment.NEAR_AI_API_KEY}`,
-            'content-type': 'application/json',
-            'x-no-aliasing': 'true',
-          },
-          body,
-        },
-      );
-    } catch {
-      throw new Error('NEAR AI request failed');
-    }
-    if (!response.ok) throw new Error(`NEAR AI HTTP ${response.status}`);
-    const raw = await boundedText(response);
-    let value: unknown;
-    try {
-      value = JSON.parse(raw) as unknown;
-    } catch {
-      throw new Error('NEAR AI returned malformed JSON');
-    }
-    const completion = completionSchema.safeParse(value);
+    };
+    const completion = completionSchema.safeParse(
+      await this.client.chat.completions.create(request),
+    );
     if (!completion.success || completion.data.model !== this.model) {
       throw new Error('NEAR AI completion schema or model mismatch');
+    }
+    const receipt = await this.client.verifyResponse(completion.data.id);
+    if (
+      receipt.signatureKind !== 'provider_tee' ||
+      receipt.signature.signer.signingAlgo !== 'ed25519' ||
+      receipt.attestations.length === 0
+    ) {
+      throw new Error('CFO response was not model-TEE verified');
+    }
+    const approved = new Set(
+      this.environment.NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS,
+    );
+    if (
+      receipt.attestations.some(
+        ({ deployment }) => !approved.has(nearAiDeploymentDigest(deployment)),
+      )
+    ) {
+      throw new Error('CFO response used an unapproved deployment');
     }
     let output: unknown;
     try {
@@ -137,24 +135,9 @@ export class NearAiCfoInferenceAdapter implements CfoInferenceAdapter {
     return {
       provider: this.provider,
       model: this.model,
-      providerRequestId:
-        response.headers.get('x-request-id') ?? completion.data.id,
-      // B-08 does not fetch and cryptographically verify preflight attestation
-      // plus the exact-byte response signature. Never label this private/verified.
-      attestationStatus: 'UNVERIFIED',
+      providerRequestId: completion.data.id,
+      attestationStatus: 'VERIFIED_PROVIDER_TEE',
       output,
     };
   }
-}
-
-async function boundedText(response: Response): Promise<string> {
-  const length = Number(response.headers.get('content-length'));
-  if (Number.isFinite(length) && length > 1_000_000) {
-    throw new Error('NEAR AI response too large');
-  }
-  const text = await response.text();
-  if (Buffer.byteLength(text) > 1_000_000) {
-    throw new Error('NEAR AI response too large');
-  }
-  return text;
 }

@@ -39,8 +39,6 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "start:worker": "node dist/worker",
-    "dev:worker": "tsx src/worker.ts",
     "lint": "oxlint --type-aware src/ test/",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",

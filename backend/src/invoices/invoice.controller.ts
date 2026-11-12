@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  BadGatewayException,
   Body,
   ConflictException,
   Controller,
@@ -13,6 +14,7 @@ import {
   Post,
   Req,
   UseGuards,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -46,6 +48,7 @@ import {
 } from '../settlement/settlement.store.js';
 import {
   publicSettlementAttemptSchema,
+  publicNearPaymentSchema,
   publicSettlementQuoteSchema,
   settlementAssetsSchema,
 } from '../settlement/settlement.openapi.js';
@@ -55,6 +58,7 @@ import {
   type SettlementAttempt,
   type SettlementQuote,
 } from '../settlement/settlement.types.js';
+import { ProviderAdapterError } from '../settlement/provider-adapter.types.js';
 
 const atomicAmount = z
   .string()
@@ -99,6 +103,19 @@ const publicQuoteRequestSchema = z
   })
   .strict();
 const initiatePaymentSchema = z.object({ quoteId: z.string().uuid() }).strict();
+const nearAccountSchema = z
+  .string()
+  .min(2)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
+const directPaymentSchema = z
+  .object({ signerAccountId: nearAccountSchema })
+  .strict();
+const directEvidenceSchema = z
+  .object({
+    transactionHash: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/),
+  })
+  .strict();
 
 const invoiceRequestSchema: SchemaObject = {
   type: 'object',
@@ -410,6 +427,75 @@ export class PublicInvoiceController {
     });
   }
 
+  @Post(':publicToken/near-testnet/payments')
+  @ApiOperation({
+    summary: 'Prepare an exact wallet-signed NEAR testnet invoice transfer',
+  })
+  @ApiParam({ name: 'publicToken', type: String })
+  @ApiHeader({ name: 'Idempotency-Key', required: true })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['signerAccountId'],
+      properties: { signerAccountId: { type: 'string' } },
+    },
+  })
+  @ApiResponse({ status: 201, schema: publicNearPaymentSchema })
+  async prepareNearTestnetPayment(
+    @Param('publicToken') publicToken: string,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: unknown,
+  ) {
+    return this.executePublic(publicToken, async (invoice) => {
+      const { signerAccountId } = directPaymentSchema.parse(body);
+      if (!invoice.currency.startsWith('near:testnet:')) {
+        throw new SettlementError(
+          'UNSUPPORTED_ASSET',
+          'This invoice is not payable with a direct NEAR testnet transfer',
+        );
+      }
+      const prepared = await this.settlement.prepareInvoiceTransfer({
+        organizationId: invoice.organizationId,
+        invoiceId: invoice.id,
+        idempotencyKey: idempotencyKey ?? '',
+        assetId: invoice.currency,
+        amountAtomic: invoice.outstandingAmountAtomic,
+        signerAccountId,
+        receiverAccountId: nearAccountSchema.parse(invoice.payeeDestination),
+      });
+      return {
+        payment: publicAttempt(prepared.payment, invoice.id),
+        transaction: prepared.transaction,
+      };
+    });
+  }
+
+  @Post(':publicToken/near-testnet/payments/:paymentId/evidence')
+  @ApiOperation({
+    summary: 'Verify final NEAR evidence and settle the invoice',
+  })
+  @ApiParam({ name: 'publicToken', type: String })
+  @ApiParam({ name: 'paymentId', type: String, format: 'uuid' })
+  @ApiResponse({ status: 201, schema: publicSettlementAttemptSchema })
+  async submitNearTestnetEvidence(
+    @Param('publicToken') publicToken: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: unknown,
+  ) {
+    return this.executePublic(publicToken, async (invoice) =>
+      publicAttempt(
+        await this.settlement.submitInvoiceTransfer({
+          organizationId: invoice.organizationId,
+          invoiceId: invoice.id,
+          paymentId: z.string().uuid().parse(paymentId),
+          transactionHash: directEvidenceSchema.parse(body).transactionHash,
+        }),
+        invoice.id,
+      ),
+    );
+  }
+
   @Get(':publicToken/payments/:paymentId')
   @ApiOperation({ summary: 'Read a token-scoped mock payment timeline' })
   @ApiParam({ name: 'publicToken', type: String })
@@ -467,6 +553,17 @@ export class PublicInvoiceController {
       }
       if (error instanceof InvoiceError) throw new NotFoundException();
       if (error instanceof SettlementError) throw settlementHttpError(error);
+      if (error instanceof ProviderAdapterError) {
+        const body = { code: error.code, message: error.message };
+        if (
+          error.code === 'PROVIDER_UNAVAILABLE' ||
+          error.code === 'PROVIDER_DISABLED' ||
+          error.code === 'LIVE_OPERATION_DISABLED'
+        ) {
+          throw new ServiceUnavailableException(body);
+        }
+        throw new BadGatewayException(body);
+      }
       throw error;
     }
   }

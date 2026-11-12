@@ -16,6 +16,7 @@ export type VerifiedObservation = SettlementObservation & {
 
 export interface SettlementStore {
   createQuote(quote: SettlementQuote): Promise<SettlementQuote>;
+  quote(organizationId: string, quoteId: string): Promise<SettlementQuote>;
   initiate(input: {
     organizationId: string;
     idempotencyKey: string;
@@ -23,6 +24,9 @@ export interface SettlementStore {
     requiredInvoiceId?: string;
     requestDigest: string;
     now: Date;
+    provider?: 'mock' | 'near-testnet';
+    operation?: string;
+    queuePoll?: boolean;
   }): Promise<SettlementAttempt>;
   getAttempt(
     organizationId: string,
@@ -66,6 +70,24 @@ export interface SettlementOperations {
     organizationId: string,
     paymentId: string,
   ): Promise<SettlementAttempt> | SettlementAttempt;
+  prepareInvoiceTransfer(input: {
+    organizationId: string;
+    invoiceId: string;
+    idempotencyKey: string;
+    assetId: string;
+    amountAtomic: string;
+    signerAccountId: string;
+    receiverAccountId: string;
+  }): Promise<{
+    payment: SettlementAttempt;
+    transaction: import('./provider-adapter.types.js').NearWalletTransaction;
+  }>;
+  submitInvoiceTransfer(input: {
+    organizationId: string;
+    invoiceId: string;
+    paymentId: string;
+    transactionHash: string;
+  }): Promise<SettlementAttempt>;
 }
 
 export const SETTLEMENT_OPERATIONS = Symbol('SETTLEMENT_OPERATIONS');

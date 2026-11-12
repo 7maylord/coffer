@@ -194,7 +194,10 @@ export class AutomationService {
     return {
       providerMode: this.environment.AI_CFO_PROVIDER,
       nearAiEnabled: this.environment.NEAR_AI_CFO_ENABLED,
-      attestationVerification: 'not-implemented' as const,
+      attestationVerification:
+        this.environment.AI_CFO_PROVIDER === 'near-ai'
+          ? ('provider-tee' as const)
+          : ('not-requested' as const),
       proposals: await this.store.cfoProposals(organizationId),
     };
   }

@@ -91,6 +91,12 @@ export class PayrollService {
       csv: string;
     },
   ) {
+    if (!this.encryption.persistent) {
+      throw new PayrollError(
+        'PAYROLL_ENCRYPTION_UNAVAILABLE',
+        'Persistent payroll encryption is not configured',
+      );
+    }
     const parsedInput = z
       .object({
         reference,
@@ -643,19 +649,27 @@ export class PayrollService {
   }
 
   private decryptLines(batch: StoredPayrollBatch) {
-    const dataKey = this.encryption.unwrapDataKey({
-      organizationId: batch.organizationId,
-      reference: batch.reference,
-      wrappedDataKey: batch.wrappedDataKey,
-      dataKeyNonce: batch.dataKeyNonce,
-      encryptionKeyVersion: batch.encryptionKeyVersion,
-    });
+    let dataKey: Buffer | undefined;
     try {
+      const unwrapped = this.encryption.unwrapDataKey({
+        organizationId: batch.organizationId,
+        reference: batch.reference,
+        wrappedDataKey: batch.wrappedDataKey,
+        dataKeyNonce: batch.dataKeyNonce,
+        encryptionKeyVersion: batch.encryptionKeyVersion,
+      });
+      dataKey = unwrapped;
       return batch.lines.map((line) =>
-        decryptLine(this.encryption, dataKey, batch, line),
+        decryptLine(this.encryption, unwrapped, batch, line),
+      );
+    } catch (error) {
+      if (error instanceof PayrollError) throw error;
+      throw new PayrollError(
+        'PAYROLL_ENCRYPTION_UNAVAILABLE',
+        'Payroll encryption key is unavailable or does not match this batch',
       );
     } finally {
-      dataKey.fill(0);
+      dataKey?.fill(0);
     }
   }
 

@@ -1,7 +1,7 @@
 # Coffer contract-first implementation plan
 
-- Status: executing; contracts are deployed on testnet and local backend/F-01 through F-07 implementation is complete, release gates remain open
-- Date: 2026-11-06
+- Status: executing; contracts are deployed on testnet and the local MVP is implemented, but the production release gate remains open
+- Date: 2026-11-12
 - Source of truth: `COFFER_PRD_TRD.md`
 - Required order: contracts, then backend, then frontend
 - Scope: hackathon P0 through Gates G0-G5; P1/P2 remain separately gated
@@ -37,6 +37,50 @@ This ordering changes the PRD's default critical path while preserving ADR-002 t
 | Infrastructure | PostgreSQL and Redis Compose, separate frontend/backend pnpm projects, transactional migrations, worker/concurrency tests, contract artifact checks, credential and dependency scans, type-aware linting, critical-test manifest, coverage gate, security regression, performance smoke, and frontend Chromium tests configured in CI                                                                                                                                              | Hosted CI execution and full-stack product journey gates remain unverified                                                                           |
 
 The `START_HERE.md` local foundation record is complete for its stated scope. The backend portion of Gate G0 is green for current routes. A frontend demo Playwright baseline now passes locally; full PRD Gate G0 remains open for authenticated frontend/backend integration. Resource-specific T-ID-05/06/07 frontend cases remain part of the integration work.
+
+### 2.1 Production-gap audit — 2026-11-12
+
+The authenticated UI is tenant-backed and does not load the fictional `/demo`
+state. Generic `SANDBOX` and `Simulated balances` chrome has been removed from
+authenticated pages. Provider-specific disclosures remain wherever the actual
+implementation is still a mock or testnet adapter; removing those words without
+replacing the provider would violate FR-PAY-007, FR-PRV-005, COF-004 and Gate G5.
+
+Confirmed fixes in this checkpoint:
+
+- **COF-104 / FR-AUD-001–003 / T-ID-05 / G1:** audit responses now use an
+  explicit public DTO and no longer leak the internal `organizationId` field.
+- **COF-104 / FR-PAY-004–007 / T-PAY-06/07/10/11 / G1:** the Nest API starts
+  and owns the durable settlement outbox loop. Polling, reconciliation rechecks
+  and ledger postings no longer depend on a separately launched worker process.
+- **COF-501 / FR-PRV-001/003 / T-PRV-03–05 / G4:** persistent payroll imports
+  fail closed without `ENCRYPTION_KEY_BASE64`; decryption/key mismatch becomes a
+  safe 503 response instead of leaking a raw crypto failure.
+
+Confirmed production blockers still open:
+
+- `NODE_ENV=production`, Railway's injected `PORT`, and `API_HOST=0.0.0.0` are
+  accepted without enabling fund movement. KMS/secrets-manager integration,
+  backup/restore, SLOs, alerting, compliance approval and independent security
+  review remain open.
+- New native-NEAR invoices use an exact wallet-signed testnet transfer and are
+  credited only after independent final RPC verification. Existing mock-asset
+  invoices remain walkthrough data; mainnet 1Click invoice reconciliation is
+  still open because 1Click has no testnet.
+- Agent commerce uses a seeded mock vendor and mock settlement asset. It is not
+  a production vendor registry or real purchase execution path.
+- CFO and payroll inference use the NEAR AI verification SDK, require a
+  provider-TEE response signature, and pin approved deployment digests. Live
+  credential/model/attestation evidence is still required before release.
+- Payroll remains synthetic/no-tax and the payout adapter is NEAR testnet-only.
+  The existing `Nov-Prayroll` ciphertext cannot be recovered because it was
+  created with an ephemeral process key; it must be explicitly deleted and
+  recreated after a persistent key is configured.
+- Policy-factory automatic sponsorship, a live per-business instance/binding
+  E2E, policy-version synchronization, mainnet settlement and production custody
+  are not complete.
+- Hosted CI evidence, browser/screen-reader matrix, penetration testing and an
+  independent contract review remain open release evidence.
 
 ## 3. Locked architecture and safety decisions
 

@@ -13,9 +13,11 @@ type Sealed = { ciphertext: Buffer; nonce: Buffer };
 export class PayrollEnvelopeEncryption {
   private readonly keyEncryptionKey: Buffer;
   readonly keyVersion: string;
+  readonly persistent: boolean;
 
   constructor(@Inject(APP_ENVIRONMENT) environment: AppEnvironment) {
     this.keyVersion = environment.ENCRYPTION_KEY_VERSION;
+    this.persistent = Boolean(environment.ENCRYPTION_KEY_BASE64);
     this.keyEncryptionKey = environment.ENCRYPTION_KEY_BASE64
       ? decodeKey(environment.ENCRYPTION_KEY_BASE64)
       : randomBytes(32);

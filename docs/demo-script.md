@@ -34,7 +34,6 @@ docker compose up -d postgres redis
 pnpm --dir backend prisma:migrate:deploy
 pnpm --dir backend prisma:seed
 pnpm --dir backend dev
-pnpm --dir backend dev:worker
 pnpm --dir frontend dev
 ```
 

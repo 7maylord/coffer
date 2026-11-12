@@ -34,35 +34,63 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
   }
 
   async createQuote(quote: SettlementQuote): Promise<SettlementQuote> {
-    await this.serializable(async (tx) => {
-      if (quote.invoiceId) {
-        await lockInvoice(tx, quote.organizationId, quote.invoiceId);
-        const invoice = await tx.invoice.findFirst({
-          where: { id: quote.invoiceId, organizationId: quote.organizationId },
+    try {
+      await this.serializable(async (tx) => {
+        if (quote.invoiceId) {
+          await lockInvoice(tx, quote.organizationId, quote.invoiceId);
+          const invoice = await tx.invoice.findFirst({
+            where: {
+              id: quote.invoiceId,
+              organizationId: quote.organizationId,
+            },
+          });
+          validateInvoiceQuote(invoice, quote);
+        }
+        await tx.quoteSnapshot.create({
+          data: {
+            id: quote.id,
+            organizationId: quote.organizationId,
+            invoiceId: quote.invoiceId,
+            provider: quote.provider,
+            sourceAssetId: quote.sourceAssetId,
+            destinationAssetId: quote.destinationAssetId,
+            amountAtomic: new Prisma.Decimal(quote.amountAtomic),
+            expectedAmountAtomic: new Prisma.Decimal(
+              quote.expectedAmountAtomic,
+            ),
+            recipient: quote.recipient,
+            refundTo: quote.refundTo,
+            slippageBps: quote.slippageBps,
+            confidentiality: quote.confidentiality,
+            scenario: quote.scenario,
+            requestDigest: quote.requestDigest,
+            expiresAt: new Date(quote.expiresAt),
+          },
         });
-        validateInvoiceQuote(invoice, quote);
-      }
-      await tx.quoteSnapshot.create({
-        data: {
-          id: quote.id,
-          organizationId: quote.organizationId,
-          invoiceId: quote.invoiceId,
-          provider: quote.provider,
-          sourceAssetId: quote.sourceAssetId,
-          destinationAssetId: quote.destinationAssetId,
-          amountAtomic: new Prisma.Decimal(quote.amountAtomic),
-          expectedAmountAtomic: new Prisma.Decimal(quote.expectedAmountAtomic),
-          recipient: quote.recipient,
-          refundTo: quote.refundTo,
-          slippageBps: quote.slippageBps,
-          confidentiality: quote.confidentiality,
-          scenario: quote.scenario,
-          requestDigest: quote.requestDigest,
-          expiresAt: new Date(quote.expiresAt),
-        },
       });
+      return quote;
+    } catch (error: unknown) {
+      if (!knownPrismaError(error, 'P2002')) throw error;
+      const existing = await this.prisma.quoteSnapshot.findFirst({
+        where: { id: quote.id, organizationId: quote.organizationId },
+      });
+      if (existing?.requestDigest === quote.requestDigest) return quote;
+      throw new SettlementError(
+        'IDEMPOTENCY_CONFLICT',
+        'Quote identifier already belongs to another request',
+      );
+    }
+  }
+
+  async quote(
+    organizationId: string,
+    quoteId: string,
+  ): Promise<SettlementQuote> {
+    const quote = await this.prisma.quoteSnapshot.findFirst({
+      where: { id: quoteId, organizationId },
     });
-    return quote;
+    if (!quote) throw new SettlementError('QUOTE_NOT_FOUND', 'Quote not found');
+    return mapQuote(quote);
   }
 
   async initiate(
@@ -77,11 +105,12 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
     try {
       return await this.serializable(async (tx) => {
         await lockOrganization(tx, input.organizationId);
+        const operation = input.operation ?? OPERATION;
         const existingKey = await tx.idempotencyRecord.findUnique({
           where: {
             organizationId_operation_key: {
               organizationId: input.organizationId,
-              operation: OPERATION,
+              operation,
               key: input.idempotencyKey,
             },
           },
@@ -97,7 +126,7 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
             where: {
               organizationId_operation_idempotencyKey: {
                 organizationId: input.organizationId,
-                operation: OPERATION,
+                operation,
                 idempotencyKey: input.idempotencyKey,
               },
             },
@@ -145,10 +174,10 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
             organizationId: input.organizationId,
             invoiceId: quote.invoiceId,
             quoteId: input.quoteId,
-            operation: OPERATION,
+            operation,
             idempotencyKey: input.idempotencyKey,
             requestDigest: input.requestDigest,
-            provider: 'mock',
+            provider: input.provider ?? 'mock',
             status: PaymentStatus.AWAITING_DEPOSIT,
             statusHistory: {
               create: {
@@ -163,21 +192,23 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
         await tx.idempotencyRecord.create({
           data: {
             organizationId: input.organizationId,
-            operation: OPERATION,
+            operation,
             key: input.idempotencyKey,
             requestDigest: input.requestDigest,
             responseCode: 201,
             responseBody: { paymentId: attempt.id },
           },
         });
-        await tx.outboxEvent.create({
-          data: {
-            organizationId: input.organizationId,
-            topic: 'settlement.poll.requested',
-            aggregateId: `${attempt.id}:0`,
-            payload: { paymentId: attempt.id, pollCount: 0 },
-          },
-        });
+        if (input.queuePoll !== false) {
+          await tx.outboxEvent.create({
+            data: {
+              organizationId: input.organizationId,
+              topic: 'settlement.poll.requested',
+              aggregateId: `${attempt.id}:0`,
+              payload: { paymentId: attempt.id, pollCount: 0 },
+            },
+          });
+        }
         return mapAttempt(attempt);
       });
     } catch (error: unknown) {
@@ -186,7 +217,7 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
           where: {
             organizationId_operation_idempotencyKey: {
               organizationId: input.organizationId,
-              operation: OPERATION,
+              operation: input.operation ?? OPERATION,
               idempotencyKey: input.idempotencyKey,
             },
           },
@@ -303,17 +334,20 @@ export class PrismaSettlementStore implements SettlementStore, OnModuleDestroy {
     if (duplicate) return mapAttempt(attempt);
 
     const exact = observation.verified && exactEvidence(attempt, observation);
-    const next =
+    const observed =
       observation.providerStatus === 'SUCCESS' && !exact
         ? PaymentStatus.UNKNOWN_REQUIRES_RECONCILIATION
         : observation.providerStatus === 'REFUNDED' && !exact
           ? PaymentStatus.UNKNOWN_REQUIRES_RECONCILIATION
           : (mockStatusMap[observation.providerStatus] as PaymentStatus);
+    const next = terminalStatuses.has(attempt.status)
+      ? attempt.status
+      : observed;
     const payload = controlledPayload(observation);
     await tx.inboxEvent.create({
       data: {
         organizationId: attempt.organizationId,
-        source: 'mock',
+        source: attempt.provider,
         externalEventId: observation.eventId,
         payload,
         processedAt: now,
@@ -602,7 +636,7 @@ function mapAttempt(attempt: AttemptRecord): SettlementAttempt {
     organizationId: attempt.organizationId,
     quoteId: attempt.quoteId,
     ...(attempt.invoiceId ? { invoiceId: attempt.invoiceId } : {}),
-    provider: 'mock',
+    provider: attempt.provider as SettlementAttempt['provider'],
     scenario: requireScenario(attempt.quote.scenario),
     status: attempt.status,
     version: attempt.version,
@@ -618,6 +652,43 @@ function mapAttempt(attempt: AttemptRecord): SettlementAttempt {
       observedAt: item.observedAt.toISOString(),
       eventId: item.providerEventId,
     })),
+  };
+}
+
+function mapQuote(
+  quote: NonNullable<
+    Awaited<ReturnType<PrismaClient['quoteSnapshot']['findFirst']>>
+  >,
+): SettlementQuote {
+  if (quote.provider !== 'mock' && quote.provider !== 'near-testnet') {
+    throw new SettlementError('INVALID_REQUEST', 'Stored provider is invalid');
+  }
+  if (
+    quote.confidentiality !== 'none' &&
+    quote.confidentiality !== 'basic' &&
+    quote.confidentiality !== 'advanced'
+  ) {
+    throw new SettlementError(
+      'INVALID_REQUEST',
+      'Stored confidentiality mode is invalid',
+    );
+  }
+  return {
+    id: quote.id,
+    organizationId: quote.organizationId,
+    ...(quote.invoiceId ? { invoiceId: quote.invoiceId } : {}),
+    provider: quote.provider,
+    sourceAssetId: quote.sourceAssetId,
+    destinationAssetId: quote.destinationAssetId,
+    amountAtomic: quote.amountAtomic.toFixed(0),
+    expectedAmountAtomic: quote.expectedAmountAtomic.toFixed(0),
+    recipient: quote.recipient,
+    refundTo: quote.refundTo,
+    slippageBps: quote.slippageBps,
+    confidentiality: quote.confidentiality,
+    scenario: requireScenario(quote.scenario),
+    requestDigest: quote.requestDigest,
+    expiresAt: quote.expiresAt.toISOString(),
   };
 }
 

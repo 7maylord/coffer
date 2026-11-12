@@ -9,10 +9,7 @@ import {
   SETTLEMENT_OPERATIONS,
   type SettlementOperations,
 } from './settlement.store.js';
-import {
-  RedisSettlementQueue,
-  SettlementOutboxWorker,
-} from './settlement-outbox.worker.js';
+import { SettlementOutboxProcessor } from './settlement-outbox.processor.js';
 import { NearIntents1ClickAdapter } from './near-intents-1click.adapter.js';
 import {
   NEAR_TRANSFER_EVIDENCE_STORE,
@@ -47,22 +44,27 @@ import { PrismaIntentsSwapStore } from './prisma-intents-swap.store.js';
     PrismaSettlementStore,
     {
       provide: SettlementService,
-      inject: [PrismaSettlementStore, MockSettlementAdapter],
+      inject: [
+        PrismaSettlementStore,
+        MockSettlementAdapter,
+        NearTestnetTransferAdapter,
+      ],
       useFactory: (
         store: PrismaSettlementStore,
         mock: MockSettlementAdapter,
-      ): SettlementOperations => new SettlementService(store, mock),
+        transfers: NearTestnetTransferAdapter,
+      ): SettlementOperations =>
+        new SettlementService(store, mock, undefined, transfers),
     },
     {
       provide: SETTLEMENT_OPERATIONS,
       useExisting: SettlementService,
     },
-    RedisSettlementQueue,
-    SettlementOutboxWorker,
+    SettlementOutboxProcessor,
   ],
   exports: [
     SETTLEMENT_OPERATIONS,
-    SettlementOutboxWorker,
+    SettlementOutboxProcessor,
     NearIntents1ClickAdapter,
     NearTestnetTransferAdapter,
   ],

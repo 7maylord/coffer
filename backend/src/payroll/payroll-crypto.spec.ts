@@ -28,6 +28,13 @@ describe('PayrollEnvelopeEncryption', () => {
       'sensitive salary',
     );
     expect(created.wrappedDataKey.toString()).not.toContain('sensitive');
+    expect(encryption.persistent).toBe(true);
+  });
+
+  it('marks an ephemeral process key as unsuitable for persistent payroll', () => {
+    const encryption = new PayrollEnvelopeEncryption(parseEnvironment({}));
+
+    expect(encryption.persistent).toBe(false);
   });
 
   it('rejects key-version, context, and ciphertext tampering', () => {

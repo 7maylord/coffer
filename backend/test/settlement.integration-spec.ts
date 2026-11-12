@@ -1,15 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
-import { createClient } from 'redis';
 import { parseEnvironment } from '../src/config/env.js';
 import { MockSettlementAdapter } from '../src/settlement/mock-settlement.adapter.js';
 import { PrismaSettlementStore } from '../src/settlement/prisma-settlement.store.js';
 import { SettlementService } from '../src/settlement/settlement.service.js';
-import {
-  RedisSettlementQueue,
-  SettlementOutboxWorker,
-  type SettlementQueuePublisher,
-} from '../src/settlement/settlement-outbox.worker.js';
+import { SettlementOutboxProcessor } from '../src/settlement/settlement-outbox.processor.js';
 import { PrismaLedgerStore } from '../src/treasury/prisma-ledger.store.js';
 import { LedgerService } from '../src/treasury/ledger.service.js';
 
@@ -136,7 +131,10 @@ describe('durable settlement', () => {
     });
     expect(
       await prisma.settlementObservation.count({
-        where: { paymentAttemptId: attempt.id },
+        where: {
+          paymentAttemptId: attempt.id,
+          providerEventId: observation.eventId,
+        },
       }),
     ).toBe(1);
     expect(
@@ -144,6 +142,44 @@ describe('durable settlement', () => {
         where: { paymentAttemptId: attempt.id },
       }),
     ).toBe(1);
+  });
+
+  it('does not regress a terminal settlement when a late poll arrives', async () => {
+    const quote = await service.createQuote(organizationId, {
+      ...request,
+      amountAtomic: '101',
+    });
+    const attempt = await service.initiate(
+      organizationId,
+      `terminal-${suffix}`,
+      quote.id,
+    );
+    await store.observe({
+      organizationId,
+      paymentId: attempt.id,
+      observation: {
+        eventId: `terminal-success-${suffix}`,
+        providerStatus: 'SUCCESS',
+        verified: true,
+        amountAtomic: '101',
+        assetId: request.destinationAssetId,
+        recipient: request.recipient,
+      },
+      now,
+    });
+    await store.observe({
+      organizationId,
+      paymentId: attempt.id,
+      observation: {
+        eventId: `late-processing-${suffix}`,
+        providerStatus: 'PROCESSING',
+        verified: true,
+      },
+      now,
+    });
+    await expect(
+      service.getAttempt(organizationId, attempt.id),
+    ).resolves.toMatchObject({ status: 'SETTLED', settlementPostingCount: 1 });
   });
 
   it('T-PAY-07/T-PAY-08/T-PAY-10/T-PAY-11 reconciles uncertainty without a second attempt or ledger credit', async () => {
@@ -259,20 +295,14 @@ describe('durable settlement', () => {
   });
 
   it('delivers posting outbox records to the exact-once ledger path', async () => {
-    const published: Array<{ queue: string; payload: string }> = [];
-    const queue: SettlementQueuePublisher = {
-      publish: async (name, payload) => {
-        published.push({ queue: name, payload });
-      },
-    };
-    const worker = new SettlementOutboxWorker(
+    const processor = new SettlementOutboxProcessor(
       environment,
       ledger,
-      queue as RedisSettlementQueue,
+      service,
     );
     try {
-      const workerNow = new Date(Date.now() + 60_000);
-      while (await worker.drainOnce(workerNow)) {
+      const processorNow = new Date(Date.now() + 60_000);
+      while (await processor.drainOnce(processorNow)) {
         /* drain fixture work */
       }
       const completed = await prisma.settlementPosting.findMany({
@@ -285,28 +315,12 @@ describe('durable settlement', () => {
       });
       expect(journalCount).toBe(completed.length);
       expect(
-        published.some(
-          ({ queue: name }) => name === 'coffer:settlement:reconciliation',
-        ),
-      ).toBe(true);
+        await prisma.outboxEvent.count({
+          where: { organizationId, publishedAt: null },
+        }),
+      ).toBe(0);
     } finally {
-      await worker.onModuleDestroy();
-    }
-  });
-
-  it('publishes durable work to Redis without making Redis authoritative', async () => {
-    const publisher = new RedisSettlementQueue(environment);
-    const client = createClient({ url: environment.REDIS_URL });
-    const queue = `coffer:test:${suffix}`;
-    await client.connect();
-    try {
-      await client.del(queue);
-      await publisher.publish(queue, JSON.stringify({ synthetic: true }));
-      expect(await client.lPop(queue)).toBe('{"synthetic":true}');
-    } finally {
-      await publisher.onModuleDestroy();
-      await client.del(queue);
-      await client.quit();
+      await processor.onModuleDestroy();
     }
   });
 });

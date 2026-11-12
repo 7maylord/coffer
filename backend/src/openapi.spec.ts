@@ -94,6 +94,8 @@ describe('generated OpenAPI', () => {
       '/v1/orgs/{orgId}/treasury/split-proposals/{proposalId}/reserve',
       '/v1/orgs/{orgId}/treasury/split-proposals/{proposalId}/revisions',
       '/v1/public/invoices/{publicToken}',
+      '/v1/public/invoices/{publicToken}/near-testnet/payments',
+      '/v1/public/invoices/{publicToken}/near-testnet/payments/{paymentId}/evidence',
       '/v1/public/invoices/{publicToken}/payments',
       '/v1/public/invoices/{publicToken}/payments/{paymentId}',
       '/v1/public/invoices/{publicToken}/payments/{paymentId}/poll',

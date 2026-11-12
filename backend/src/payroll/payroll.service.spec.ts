@@ -180,10 +180,12 @@ function fixture(
     analyzer?: PrivatePayrollAnalyzer;
     verifier?: PayrollAttestationVerifier;
     payoutEnabled?: boolean;
+    persistentEncryption?: boolean;
   } = {},
 ) {
   const environment = parseEnvironment({
-    ENCRYPTION_KEY_BASE64: encryptionKey,
+    ENCRYPTION_KEY_BASE64:
+      options.persistentEncryption === false ? undefined : encryptionKey,
     ENCRYPTION_KEY_VERSION: 'test-key-v1',
     ...(options.privateEnabled
       ? {
@@ -253,6 +255,15 @@ async function imported(
 }
 
 describe('PayrollService', () => {
+  it('fails closed before persisting payroll without a stable encryption key', async () => {
+    const test = fixture({ persistentEncryption: false });
+
+    await expect(imported(test)).rejects.toMatchObject({
+      code: 'PAYROLL_ENCRYPTION_UNAVAILABLE',
+    });
+    expect(test.store.createBatch).not.toHaveBeenCalled();
+  });
+
   it('lists only summary batches and self-scoped decrypted payslips', async () => {
     const test = fixture();
     await imported(test);

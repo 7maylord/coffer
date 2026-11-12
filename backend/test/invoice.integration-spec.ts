@@ -205,6 +205,81 @@ describe('invoice persistence and settlement', () => {
     expect(paid.paymentAttempts).toHaveLength(2);
   });
 
+  it('credits a direct NEAR invoice only after exact verified evidence', async () => {
+    const created = await invoices.create(organizationId, userId, {
+      invoiceNumber: `INV-NEAR-${suffix}`,
+      currency: 'near:testnet:native',
+      payeeDestination: 'merchant.testnet',
+      customer: { displayName: 'NEAR Customer' },
+      lineItems: [{ description: 'Service', amountAtomic: '1000' }],
+      metadata: {},
+      dueDate: '2026-11-30T12:00:00.000Z',
+    });
+    await invoices.issue(organizationId, created.invoice.id);
+    const quoteId = randomUUID();
+    await settlementStore.createQuote({
+      id: quoteId,
+      organizationId,
+      invoiceId: created.invoice.id,
+      provider: 'near-testnet',
+      sourceAssetId: 'near:testnet:native',
+      destinationAssetId: 'near:testnet:native',
+      amountAtomic: '1000',
+      expectedAmountAtomic: '1000',
+      recipient: 'merchant.testnet',
+      refundTo: 'payer.testnet',
+      slippageBps: 0,
+      confidentiality: 'none',
+      scenario: 'success',
+      requestDigest: 'a'.repeat(64),
+      expiresAt: '2026-11-30T12:00:00.000Z',
+    });
+    const attempt = await settlementStore.initiate({
+      organizationId,
+      idempotencyKey: `near-invoice-${suffix}`,
+      quoteId,
+      requiredInvoiceId: created.invoice.id,
+      requestDigest: 'b'.repeat(64),
+      now,
+      provider: 'near-testnet',
+      operation: 'INVOICE_NEAR_TESTNET_TRANSFER',
+      queuePoll: false,
+    });
+    const observed = await settlementStore.observe({
+      organizationId,
+      paymentId: attempt.id,
+      observation: {
+        eventId: `direct-${suffix}`,
+        providerStatus: 'SUCCESS',
+        verified: true,
+        amountAtomic: '1000',
+        assetId: 'near:testnet:native',
+        recipient: 'merchant.testnet',
+      },
+      now,
+    });
+    expect(observed).toMatchObject({
+      status: 'SETTLED',
+      settlementPostingCount: 1,
+    });
+    await expect(
+      invoices.get(organizationId, created.invoice.id),
+    ).resolves.toMatchObject({
+      status: 'PAID',
+      paymentState: 'PAID',
+      verifiedReceivedAtomic: '1000',
+    });
+    await expect(
+      prisma.outboxEvent.count({
+        where: {
+          organizationId,
+          topic: 'settlement.poll.requested',
+          payload: { path: ['paymentId'], equals: attempt.id },
+        },
+      }),
+    ).resolves.toBe(0);
+  });
+
   it('records concurrent valid attempts as overpaid when verified receipts exceed the invoice total', async () => {
     const created = await issue('OVERPAID');
     const [first, second] = await Promise.all([

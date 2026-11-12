@@ -1,7 +1,6 @@
 export const AUTOMATION_STORE = Symbol('AUTOMATION_STORE');
 export const CFO_INFERENCE_ADAPTER = Symbol('CFO_INFERENCE_ADAPTER');
 export const MOCK_VENDOR_ADAPTER = Symbol('MOCK_VENDOR_ADAPTER');
-export const NEAR_AI_FETCH = Symbol('NEAR_AI_FETCH');
 
 export const automationErrorCodes = [
   'AUTOMATION_NOT_FOUND',
@@ -49,7 +48,7 @@ export type CfoInferenceResult = {
   provider: string;
   model: string;
   providerRequestId?: string;
-  attestationStatus: 'NOT_REQUESTED' | 'UNVERIFIED';
+  attestationStatus: 'NOT_REQUESTED' | 'VERIFIED_PROVIDER_TEE';
   output: unknown;
 };
 

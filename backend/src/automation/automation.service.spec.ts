@@ -164,7 +164,7 @@ describe('AutomationService CFO proposals', () => {
     await expect(test.service.cfoWorkspace(organizationId)).resolves.toEqual({
       providerMode: 'mock',
       nearAiEnabled: false,
-      attestationVerification: 'not-implemented',
+      attestationVerification: 'not-requested',
       proposals,
     });
   });

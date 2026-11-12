@@ -194,7 +194,7 @@ describe('J-02/J-03 automation API (e2e)', () => {
     expect(workspace.body).toMatchObject({
       providerMode: 'mock',
       nearAiEnabled: false,
-      attestationVerification: 'not-implemented',
+      attestationVerification: 'not-requested',
       proposals: [expect.objectContaining({ id: created.body.id })],
     });
     const before = await prisma.balanceReservation.count({

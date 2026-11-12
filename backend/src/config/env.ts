@@ -55,7 +55,7 @@ const envSchema = z
       .default('development'),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     // Keep the unauthenticated development shell on loopback until B-02 ships.
-    API_HOST: z.literal('127.0.0.1').default('127.0.0.1'),
+    API_HOST: z.enum(['127.0.0.1', '0.0.0.0']).default('127.0.0.1'),
     WEB_URL: serviceUrl(['http:', 'https:']).default('http://localhost:3000'),
     DATABASE_URL: serviceUrl(['postgresql:', 'postgres:']).default(
       'postgresql://coffer:coffer_local@localhost:5433/coffer_dev',
@@ -190,12 +190,16 @@ const envSchema = z
     }
     if (
       value.AI_CFO_PROVIDER === 'near-ai' &&
-      (!value.NEAR_AI_CFO_ENABLED || !value.NEAR_AI_API_KEY)
+      (!value.NEAR_AI_CFO_ENABLED ||
+        !value.NEAR_AI_API_KEY ||
+        value.NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS.length === 0 ||
+        new URL(value.NEAR_AI_BASE_URL).origin !== 'https://cloud-api.near.ai')
     ) {
       context.addIssue({
         code: 'custom',
         path: ['AI_CFO_PROVIDER'],
-        message: 'NEAR AI CFO requires its feature flag and server API key',
+        message:
+          'NEAR AI CFO requires its feature flag, server API key, pinned provider, and approved deployment digest',
       });
     }
     if (value.NEAR_AI_CFO_ENABLED && value.AI_CFO_PROVIDER !== 'near-ai') {
@@ -258,14 +262,6 @@ const envSchema = z
         message: 'Policy factory account ID exceeds the contract limit',
       });
     }
-    if (value.NODE_ENV === 'production') {
-      context.addIssue({
-        code: 'custom',
-        path: ['NODE_ENV'],
-        message:
-          'Production is disabled until authentication and durable settlement gates pass',
-      });
-    }
   });
 
 export type AppEnvironment = z.infer<typeof envSchema>;
@@ -274,7 +270,10 @@ export const APP_ENVIRONMENT = Symbol('APP_ENVIRONMENT');
 export function parseEnvironment(
   input: NodeJS.ProcessEnv = process.env,
 ): AppEnvironment {
-  const result = envSchema.safeParse(input);
+  const result = envSchema.safeParse({
+    ...input,
+    API_PORT: input.API_PORT ?? input.PORT,
+  });
   if (!result.success) {
     // Zod issues can include submitted values. Only schema-owned field names escape.
     throw new Error(

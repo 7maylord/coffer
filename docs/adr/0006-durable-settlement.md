@@ -26,9 +26,9 @@ inconsistent evidence creates one reconciliation case and never initiates a
 second spend. A unique payment-and-kind constraint limits settlement and refund
 posting intents to one each.
 
-The outbox worker claims settlement events with a recoverable PostgreSQL lease.
-It publishes polling and reconciliation work to Redis, while ledger posting uses
-the B-03 idempotent journal reference. A crash after journal creation is safe:
+The API-hosted outbox processor claims settlement events with a recoverable
+PostgreSQL lease. It performs polling, reconciliation, and ledger posting in the
+API process using the B-03 idempotent journal reference. A crash after journal creation is safe:
 retry finds the same journal before marking the posting and outbox event complete.
 Redis carries work and is not consulted to determine payment or ledger state.
 
@@ -37,9 +37,8 @@ Redis carries work and is not consulted to determine payment or ledger state.
 Mock settlement state and idempotency now survive process restart. Concurrent
 duplicate terminal events serialize at the payment row and produce one posting.
 Delivery is at least once, so every consumer still needs inbox or idempotency
-checks. The current worker has a separate runnable entry point; production
-process supervision, dead-letter operations, and manual resolution UI belong to
-B-10.
+checks. Railway runs one API service; dead-letter operations and manual
+resolution UI belong to B-10.
 
 No provider call, wallet signing, transfer, secret, testnet transaction, or
 mainnet action is enabled by this decision. `SETTLEMENT_MODE=mock` and

@@ -1,6 +1,19 @@
+import type { MeasuredDeployment } from '@nearai/inference-sdk/node';
 import { parseEnvironment } from '../config/env.js';
+import {
+  nearAiDeploymentDigest,
+  type NearAiInferenceClient,
+} from '../payroll/near-ai-private.adapter.js';
 import { NearAiCfoInferenceAdapter } from './ai-adapters.js';
 
+const deployment: MeasuredDeployment = {
+  appCompose: 'services:\n  model:\n    image: fixture@sha256:abc',
+  runtimeMeasurements: {
+    osImageHash: 'os-fixture',
+    composeHash: 'compose-fixture',
+  },
+};
+const deploymentDigest = nearAiDeploymentDigest(deployment);
 const input = {
   assetId: 'mock:base:usdc',
   maximumAmountAtomic: '1000000',
@@ -16,24 +29,32 @@ const input = {
   ],
 };
 
-describe('NearAiCfoInferenceAdapter', () => {
-  const environment = () =>
-    parseEnvironment({
-      AI_CFO_PROVIDER: 'near-ai',
-      NEAR_AI_CFO_ENABLED: 'true',
-      NEAR_AI_API_KEY: 'server-only-test-key',
-    });
+const environment = () =>
+  parseEnvironment({
+    AI_CFO_PROVIDER: 'near-ai',
+    NEAR_AI_CFO_ENABLED: 'true',
+    NEAR_AI_API_KEY: 'server-only-test-key',
+    NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS: deploymentDigest,
+  });
 
-  it('sends only structured scoped data with no tools and flags unverified evidence', async () => {
-    let capturedUrl = '';
-    let capturedInit: RequestInit | undefined;
-    const fetcher: typeof fetch = async (url, init) => {
-      capturedUrl = String(url);
-      capturedInit = init;
-      return new Response(
-        JSON.stringify({
+function client(
+  options: {
+    models?: unknown[];
+    model?: string;
+    signatureKind?: string;
+    deployment?: MeasuredDeployment;
+  } = {},
+) {
+  return {
+    verify: vi.fn().mockResolvedValue({
+      models: options.models ?? [{ deployment }],
+      verifiedAt: Date.now(),
+    }),
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
           id: 'completion-1',
-          model: 'z-ai/glm-5.3-flash',
+          model: options.model ?? 'z-ai/glm-5.3-flash',
           choices: [
             {
               message: {
@@ -45,86 +66,71 @@ describe('NearAiCfoInferenceAdapter', () => {
             },
           ],
         }),
-        { status: 200, headers: { 'x-request-id': 'request-1' } },
-      );
-    };
-    const adapter = new NearAiCfoInferenceAdapter(environment(), fetcher);
+      },
+    },
+    verifyResponse: vi.fn().mockResolvedValue({
+      signatureKind: options.signatureKind ?? 'provider_tee',
+      signature: {
+        signer: { signingAlgo: 'ed25519', signingAddress: 'a'.repeat(64) },
+      },
+      attestations: [{ deployment: options.deployment ?? deployment }],
+    }),
+  } as unknown as NearAiInferenceClient;
+}
+
+describe('NearAiCfoInferenceAdapter', () => {
+  it('uses verified E2EE inference with scoped data and no tools', async () => {
+    const sdk = client();
+    const adapter = new NearAiCfoInferenceAdapter(environment(), sdk);
 
     await expect(adapter.infer(input)).resolves.toMatchObject({
       provider: 'near-ai-cloud',
       model: 'z-ai/glm-5.3-flash',
-      providerRequestId: 'request-1',
-      attestationStatus: 'UNVERIFIED',
+      providerRequestId: 'completion-1',
+      attestationStatus: 'VERIFIED_PROVIDER_TEE',
     });
-    expect(capturedUrl).toBe('https://cloud-api.near.ai/v1/chat/completions');
-    const headers = new Headers(capturedInit?.headers);
-    expect(headers.get('x-no-aliasing')).toBe('true');
-    expect(headers.get('authorization')).toBe('Bearer server-only-test-key');
-    const body = JSON.parse(String(capturedInit?.body)) as Record<
-      string,
-      unknown
-    >;
-    expect(body).not.toHaveProperty('tools');
-    expect(JSON.stringify(body)).not.toContain('customer');
+    expect(sdk.verify).toHaveBeenCalledWith('z-ai/glm-5.3-flash');
+    expect(sdk.verifyResponse).toHaveBeenCalledWith('completion-1');
+    const request = vi.mocked(sdk.chat.completions.create).mock.calls[0]![0];
+    expect(request).not.toHaveProperty('tools');
+    expect(JSON.stringify(request)).not.toContain('customer');
   });
 
-  it('fails closed when disabled or the provider changes the model', async () => {
-    const disabled = new NearAiCfoInferenceAdapter(parseEnvironment({}));
-    await expect(disabled.infer(input)).rejects.toThrow('disabled');
+  it('fails closed before inference when attestation preflight is empty', async () => {
+    const sdk = client({ models: [] });
+    const adapter = new NearAiCfoInferenceAdapter(environment(), sdk);
+    await expect(adapter.infer(input)).rejects.toThrow('preflight');
+    expect(sdk.chat.completions.create).not.toHaveBeenCalled();
+  });
 
-    const mismatched: typeof fetch = async () =>
-      new Response(
-        JSON.stringify({
-          id: 'completion-2',
-          model: 'provider/other-model',
-          choices: [{ message: { content: '{}' } }],
+  it('fails closed on model, receipt, and deployment mismatches', async () => {
+    await expect(
+      new NearAiCfoInferenceAdapter(
+        environment(),
+        client({ model: 'provider/other-model' }),
+      ).infer(input),
+    ).rejects.toThrow('model mismatch');
+    await expect(
+      new NearAiCfoInferenceAdapter(
+        environment(),
+        client({ signatureKind: 'gateway' }),
+      ).infer(input),
+    ).rejects.toThrow('model-TEE');
+    await expect(
+      new NearAiCfoInferenceAdapter(
+        environment(),
+        client({
+          deployment: { appCompose: 'unapproved', runtimeMeasurements: {} },
         }),
-      );
-    const adapter = new NearAiCfoInferenceAdapter(environment(), mismatched);
-    await expect(adapter.infer(input)).rejects.toThrow('model mismatch');
+      ).infer(input),
+    ).rejects.toThrow('unapproved deployment');
   });
 
-  it.each([
-    [
-      'network failure',
-      async () => {
-        throw new Error('timeout');
-      },
-      'request failed',
-    ],
-    [
-      'HTTP failure',
-      async () => new Response('unavailable', { status: 503 }),
-      'HTTP 503',
-    ],
-    [
-      'malformed envelope JSON',
-      async () => new Response('{'),
-      'malformed JSON',
-    ],
-    [
-      'malformed message JSON',
-      async () =>
-        new Response(
-          JSON.stringify({
-            id: 'completion-3',
-            model: 'z-ai/glm-5.3-flash',
-            choices: [{ message: { content: 'not-json' } }],
-          }),
-        ),
-      'message was not JSON',
-    ],
-    [
-      'oversized response',
-      async () =>
-        new Response('{}', { headers: { 'content-length': '1000001' } }),
-      'response too large',
-    ],
-  ] as const)('fails closed on %s', async (_label, fetcher, expected) => {
+  it('fails when disabled', async () => {
     const adapter = new NearAiCfoInferenceAdapter(
-      environment(),
-      fetcher as typeof fetch,
+      parseEnvironment({}),
+      client(),
     );
-    await expect(adapter.infer(input)).rejects.toThrow(expected);
+    await expect(adapter.infer(input)).rejects.toThrow('disabled');
   });
 });

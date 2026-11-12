@@ -57,7 +57,7 @@ const quoteProperties: SchemaObject['properties'] = {
   slippageBps: { type: 'integer' },
   confidentiality: { type: 'string', enum: ['none', 'basic', 'advanced'] },
   scenario: { type: 'string', enum: [...mockScenarios] },
-  provider: { type: 'string', enum: ['mock'] },
+  provider: { type: 'string', enum: ['mock', 'near-testnet'] },
   expectedAmountAtomic: { type: 'string' },
   expiresAt: { type: 'string', format: 'date-time' },
 };
@@ -97,7 +97,7 @@ const historySchema: SchemaObject = {
 const attemptProperties: SchemaObject['properties'] = {
   id: { type: 'string', format: 'uuid' },
   quoteId: { type: 'string', format: 'uuid' },
-  provider: { type: 'string', enum: ['mock'] },
+  provider: { type: 'string', enum: ['mock', 'near-testnet'] },
   scenario: { type: 'string', enum: [...mockScenarios] },
   status: { type: 'string', enum: [...paymentStatuses] },
   version: { type: 'integer' },
@@ -114,6 +114,63 @@ export const publicSettlementAttemptSchema: SchemaObject = {
   additionalProperties: false,
   required: publicAttemptRequired,
   properties: attemptProperties,
+};
+
+export const publicNearPaymentSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['payment', 'transaction'],
+  properties: {
+    payment: publicSettlementAttemptSchema,
+    transaction: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['network', 'signerAccountId', 'receiverId', 'actions'],
+      properties: {
+        network: { type: 'string', enum: ['testnet'] },
+        signerAccountId: { type: 'string' },
+        receiverId: { type: 'string' },
+        actions: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 1,
+          items: {
+            oneOf: [
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['type', 'amountAtomic'],
+                properties: {
+                  type: { type: 'string', enum: ['Transfer'] },
+                  amountAtomic: { type: 'string', pattern: '^[1-9][0-9]*$' },
+                },
+              },
+              {
+                type: 'object',
+                additionalProperties: false,
+                required: ['type', 'methodName', 'args', 'gas', 'deposit'],
+                properties: {
+                  type: { type: 'string', enum: ['FunctionCall'] },
+                  methodName: { type: 'string', enum: ['ft_transfer'] },
+                  args: {
+                    type: 'object',
+                    required: ['receiver_id', 'amount'],
+                    properties: {
+                      receiver_id: { type: 'string' },
+                      amount: { type: 'string', pattern: '^[1-9][0-9]*$' },
+                      memo: { type: 'string' },
+                    },
+                  },
+                  gas: { type: 'string', enum: ['30000000000000'] },
+                  deposit: { type: 'string', enum: ['1'] },
+                },
+              },
+            ],
+          },
+        },
+      },
+    },
+  },
 };
 
 export const settlementAttemptSchema: SchemaObject = {

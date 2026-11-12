@@ -516,6 +516,7 @@ export class PayrollController {
         if (
           error.code === 'PRIVATE_AI_DISABLED' ||
           error.code === 'PRIVATE_AI_UNAVAILABLE' ||
+          error.code === 'PAYROLL_ENCRYPTION_UNAVAILABLE' ||
           error.code === 'PAYROLL_PAYOUT_DISABLED'
         ) {
           throw new ServiceUnavailableException();

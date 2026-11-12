@@ -1,6 +1,6 @@
 # Coffer
 
-Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet. Settlement still defaults to **mock-only**; an explicitly gated Tidepool testnet path now uses a user-controlled wallet and independent backend transaction verification without crediting the ledger from provider status. Synthetic payroll is the only permitted demo payroll data.
+Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet. Settlement still defaults to **mock-only**; explicitly gated invoice and payroll paths return exact wallet transactions and independently verify final NEAR testnet evidence before crediting an invoice or ledger. Synthetic payroll is the only permitted demo payroll data.
 
 ## Requirements
 
@@ -119,7 +119,8 @@ broadcast transactions. The next testnet slice is:
 4. let the frontend wallet sign and broadcast that exact transaction;
 5. submit only its transaction hash to the backend, which independently checks
    finality, signer, receiver, amount, token code/metadata, action, receipts,
-   and NEP-141 event before posting the ledger or marking an invoice paid; and
+   and NEP-141 event before posting the ledger or marking an invoice paid (the
+   direct invoice flow now implements this step); and
 6. add API and browser E2E coverage for success, mismatch, replay, unknown RPC
    status, unregistered receiver, and failed receipts.
 
