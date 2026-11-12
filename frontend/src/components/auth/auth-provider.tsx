@@ -30,11 +30,14 @@ import {
   type CreateOrganizationInput,
   type IntentsDepositTransaction,
   type Organization,
+  type PublicInvoice,
+  type PublicNearPayment,
   type PayrollPayoutTransaction,
   type SessionPrincipal,
 } from "@/lib/coffer-api";
 import { intentsDepositWalletRequest } from "@/lib/intents-wallet";
 import { payrollPayoutWalletRequest } from "@/lib/payroll-wallet";
+import { invoicePaymentWalletRequest } from "@/lib/invoice-wallet";
 
 type AuthStatus =
   | "loading"
@@ -69,6 +72,10 @@ type AuthContextValue = {
     transaction: IntentsDepositTransaction,
   ) => Promise<string>;
   signPayrollPayout: (transaction: PayrollPayoutTransaction) => Promise<string>;
+  signInvoicePayment: (
+    invoice: PublicInvoice,
+    prepared: PublicNearPayment,
+  ) => Promise<string>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -383,6 +390,19 @@ function AuthProviderInner({
     [signVerifiedTransaction, verifiedTestnetAccounts],
   );
 
+  const signInvoicePayment = useCallback(
+    (invoice: PublicInvoice, prepared: PublicNearPayment) =>
+      signVerifiedTransaction(
+        prepared.transaction.signerAccountId,
+        invoicePaymentWalletRequest(
+          invoice,
+          prepared,
+          verifiedTestnetAccounts(),
+        ),
+      ),
+    [signVerifiedTransaction, verifiedTestnetAccounts],
+  );
+
   const logout = useCallback(async () => {
     setError("");
     try {
@@ -434,6 +454,7 @@ function AuthProviderInner({
       acceptInvitation,
       signIntentsDeposit,
       signPayrollPayout,
+      signInvoicePayment,
       logout,
       refresh,
     }),
@@ -451,6 +472,7 @@ function AuthProviderInner({
       session,
       signIntentsDeposit,
       signPayrollPayout,
+      signInvoicePayment,
       signInWithPrivy,
       status,
     ],

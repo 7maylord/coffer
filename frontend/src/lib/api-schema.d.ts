@@ -721,6 +721,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/public/invoices/{publicToken}/near-testnet/payments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prepare an exact wallet-signed NEAR testnet invoice transfer */
+    post: operations["PublicInvoice.prepareNearTestnetPayment"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/public/invoices/{publicToken}/near-testnet/payments/{paymentId}/evidence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Verify final NEAR evidence and settle the invoice */
+    post: operations["PublicInvoice.submitNearTestnetEvidence"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/public/invoices/{publicToken}/payments/{paymentId}": {
     parameters: {
       query?: never;
@@ -2258,7 +2292,7 @@ export interface operations {
               | "status_delay"
               | "duplicate_callback";
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             expectedAmountAtomic: string;
             /** Format: date-time */
             expiresAt: string;
@@ -2310,7 +2344,7 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -2406,7 +2440,7 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -2495,7 +2529,7 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -3821,7 +3855,7 @@ export interface operations {
               | "status_delay"
               | "duplicate_callback";
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             expectedAmountAtomic: string;
             /** Format: date-time */
             expiresAt: string;
@@ -3861,7 +3895,198 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
+            /** @enum {string} */
+            scenario:
+              | "success"
+              | "refund"
+              | "unknown"
+              | "partial_deposit"
+              | "expired_quote"
+              | "status_delay"
+              | "duplicate_callback";
+            /** @enum {string} */
+            status:
+              | "CREATED"
+              | "QUOTED"
+              | "AWAITING_AUTHORIZATION"
+              | "AWAITING_DEPOSIT"
+              | "DEPOSIT_OBSERVED"
+              | "PROCESSING"
+              | "SETTLED"
+              | "REFUND_PENDING"
+              | "REFUNDED"
+              | "FAILED"
+              | "EXPIRED"
+              | "UNDERFUNDED"
+              | "UNKNOWN_REQUIRES_RECONCILIATION";
+            version: number;
+            settlementPostingCount: number;
+            refundPostingCount: number;
+            pollCount: number;
+            history: {
+              /** @enum {string} */
+              status:
+                | "CREATED"
+                | "QUOTED"
+                | "AWAITING_AUTHORIZATION"
+                | "AWAITING_DEPOSIT"
+                | "DEPOSIT_OBSERVED"
+                | "PROCESSING"
+                | "SETTLED"
+                | "REFUND_PENDING"
+                | "REFUNDED"
+                | "FAILED"
+                | "EXPIRED"
+                | "UNDERFUNDED"
+                | "UNKNOWN_REQUIRES_RECONCILIATION";
+              /** Format: date-time */
+              observedAt: string;
+              eventId: string;
+            }[];
+          };
+        };
+      };
+    };
+  };
+  "PublicInvoice.prepareNearTestnetPayment": {
+    parameters: {
+      query?: never;
+      header: {
+        "Idempotency-Key": string;
+      };
+      path: {
+        publicToken: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          signerAccountId: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            payment: {
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              quoteId: string;
+              /** @enum {string} */
+              provider: "mock" | "near-testnet";
+              /** @enum {string} */
+              scenario:
+                | "success"
+                | "refund"
+                | "unknown"
+                | "partial_deposit"
+                | "expired_quote"
+                | "status_delay"
+                | "duplicate_callback";
+              /** @enum {string} */
+              status:
+                | "CREATED"
+                | "QUOTED"
+                | "AWAITING_AUTHORIZATION"
+                | "AWAITING_DEPOSIT"
+                | "DEPOSIT_OBSERVED"
+                | "PROCESSING"
+                | "SETTLED"
+                | "REFUND_PENDING"
+                | "REFUNDED"
+                | "FAILED"
+                | "EXPIRED"
+                | "UNDERFUNDED"
+                | "UNKNOWN_REQUIRES_RECONCILIATION";
+              version: number;
+              settlementPostingCount: number;
+              refundPostingCount: number;
+              pollCount: number;
+              history: {
+                /** @enum {string} */
+                status:
+                  | "CREATED"
+                  | "QUOTED"
+                  | "AWAITING_AUTHORIZATION"
+                  | "AWAITING_DEPOSIT"
+                  | "DEPOSIT_OBSERVED"
+                  | "PROCESSING"
+                  | "SETTLED"
+                  | "REFUND_PENDING"
+                  | "REFUNDED"
+                  | "FAILED"
+                  | "EXPIRED"
+                  | "UNDERFUNDED"
+                  | "UNKNOWN_REQUIRES_RECONCILIATION";
+                /** Format: date-time */
+                observedAt: string;
+                eventId: string;
+              }[];
+            };
+            transaction: {
+              /** @enum {string} */
+              network: "testnet";
+              signerAccountId: string;
+              receiverId: string;
+              actions: (
+                | {
+                    /** @enum {string} */
+                    type: "Transfer";
+                    amountAtomic: string;
+                  }
+                | {
+                    /** @enum {string} */
+                    type: "FunctionCall";
+                    /** @enum {string} */
+                    methodName: "ft_transfer";
+                    args: {
+                      receiver_id: string;
+                      amount: string;
+                      memo?: string;
+                    };
+                    /** @enum {string} */
+                    gas: "30000000000000";
+                    /** @enum {string} */
+                    deposit: "1";
+                  }
+              )[];
+            };
+          };
+        };
+      };
+    };
+  };
+  "PublicInvoice.submitNearTestnetEvidence": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        paymentId: string;
+        publicToken: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            quoteId: string;
+            /** @enum {string} */
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -3938,7 +4163,7 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -4015,7 +4240,7 @@ export interface operations {
             /** Format: uuid */
             quoteId: string;
             /** @enum {string} */
-            provider: "mock";
+            provider: "mock" | "near-testnet";
             /** @enum {string} */
             scenario:
               | "success"
@@ -4213,7 +4438,7 @@ export interface operations {
             providerMode: "mock" | "near-ai";
             nearAiEnabled: boolean;
             /** @enum {string} */
-            attestationVerification: "not-implemented";
+            attestationVerification: "not-requested" | "provider-tee";
             proposals: {
               /** Format: uuid */
               id: string;

@@ -402,16 +402,50 @@ const publicQuoteSchema = z
     slippageBps: z.number().int(),
     confidentiality: z.enum(["none", "basic", "advanced"]),
     scenario: mockScenarioSchema,
-    provider: z.literal("mock"),
+    provider: z.enum(["mock", "near-testnet"]),
     expectedAmountAtomic: z.string().regex(/^[1-9][0-9]*$/),
     expiresAt: z.iso.datetime(),
+  })
+  .strict();
+const publicNearTransactionSchema = z
+  .object({
+    network: z.literal("testnet"),
+    signerAccountId: z.string().min(2),
+    receiverId: z.string().min(2),
+    actions: z
+      .array(
+        z.union([
+          z
+            .object({
+              type: z.literal("Transfer"),
+              amountAtomic: z.string().regex(/^[1-9][0-9]*$/),
+            })
+            .strict(),
+          z
+            .object({
+              type: z.literal("FunctionCall"),
+              methodName: z.literal("ft_transfer"),
+              args: z
+                .object({
+                  receiver_id: z.string().min(2),
+                  amount: z.string().regex(/^[1-9][0-9]*$/),
+                  memo: z.string().optional(),
+                })
+                .strict(),
+              gas: z.literal("30000000000000"),
+              deposit: z.literal("1"),
+            })
+            .strict(),
+        ]),
+      )
+      .length(1),
   })
   .strict();
 const publicPaymentSchema = z
   .object({
     id: z.uuid(),
     quoteId: z.uuid(),
-    provider: z.literal("mock"),
+    provider: z.enum(["mock", "near-testnet"]),
     scenario: mockScenarioSchema,
     status: paymentStatusSchema,
     version: z.number().int(),
@@ -427,6 +461,12 @@ const publicPaymentSchema = z
         })
         .strict(),
     ),
+  })
+  .strict();
+const publicNearPaymentSchema = z
+  .object({
+    payment: publicPaymentSchema,
+    transaction: publicNearTransactionSchema,
   })
   .strict();
 const treasuryApprovalSchema = z
@@ -682,7 +722,7 @@ const cfoWorkspaceSchema = z
   .object({
     providerMode: z.enum(["mock", "near-ai"]),
     nearAiEnabled: z.boolean(),
-    attestationVerification: z.literal("not-implemented"),
+    attestationVerification: z.enum(["not-requested", "provider-tee"]),
     proposals: z.array(cfoProposalSchema),
   })
   .strict();
@@ -1062,6 +1102,7 @@ export type IntentsDepositTransaction = z.infer<
   typeof intentsDepositTransactionSchema
 >;
 export type PreparedIntentsSwap = z.infer<typeof intentsSwapSchema>;
+export type PublicNearPayment = z.infer<typeof publicNearPaymentSchema>;
 
 export class ApiError extends Error {
   constructor(
@@ -1315,6 +1356,33 @@ export const cofferApi = {
       `/v1/public/invoices/${encodeURIComponent(publicToken)}/payments/${encodeURIComponent(paymentId)}/poll`,
       publicPaymentSchema,
       { method: "POST" },
+    ),
+  preparePublicNearPayment: (
+    publicToken: string,
+    signerAccountId: string,
+    idempotencyKey: string,
+  ) =>
+    request(
+      `/v1/public/invoices/${encodeURIComponent(publicToken)}/near-testnet/payments`,
+      publicNearPaymentSchema,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ signerAccountId }),
+      },
+    ),
+  submitPublicNearPayment: (
+    publicToken: string,
+    paymentId: string,
+    transactionHash: string,
+  ) =>
+    request(
+      `/v1/public/invoices/${encodeURIComponent(publicToken)}/near-testnet/payments/${encodeURIComponent(paymentId)}/evidence`,
+      publicPaymentSchema,
+      {
+        method: "POST",
+        body: JSON.stringify({ transactionHash }),
+      },
     ),
   treasuryWorkspace: (organizationId: string) =>
     request(

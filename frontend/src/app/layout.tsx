@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     template: "%s · Coffer",
   },
   description:
-    "A considered workspace for your treasury, invoices, agents, and people. Explore the Coffer interactive demo.",
+    "A considered workspace for your treasury, invoices, agents, and people.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

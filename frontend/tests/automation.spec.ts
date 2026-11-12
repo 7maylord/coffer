@@ -138,7 +138,7 @@ function cfoWorkspace(proposals = [cfoProposal()]) {
   return {
     providerMode: "near-ai",
     nearAiEnabled: true,
-    attestationVerification: "not-implemented",
+    attestationVerification: "not-requested",
     proposals,
   };
 }

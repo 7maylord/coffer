@@ -361,7 +361,7 @@ export function Workspace({
             </div>
             <div className="topbar-actions">
               <span className="demo-indicator">
-                <span /> {mode === "demo" ? "SAMPLE DATA" : "SANDBOX"}
+                <span /> {mode === "demo" ? "SAMPLE DATA" : "CONNECTED"}
               </span>
               <button
                 className="search-trigger"
@@ -400,7 +400,7 @@ export function Workspace({
             <span>
               {mode === "demo"
                 ? "Fictional records · No funds move"
-                : "Simulated balances · Wallet approval required"}
+                : "Wallet approval required for transfers"}
             </span>
             <Link href={href("settings")}>
               About this workspace <Icon name="northeast" size={12} />

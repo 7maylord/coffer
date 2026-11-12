@@ -58,7 +58,7 @@ test("verified session restores organization identity and role guards", async ({
 }) => {
   await mockAuthenticated(page, "EMPLOYEE");
   await page.goto("/payroll");
-  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(
@@ -89,9 +89,9 @@ test("a revoked or expired session returns to sign-in on revalidation", async ({
     route.fulfill({ status: 200, json: [organization()] }),
   );
   await page.goto("/overview");
-  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Sample records stay isolated", { exact: false }),
+    page.getByText("Wallet approval required", { exact: false }),
   ).toBeVisible();
   await expect(page.getByText("SAMPLE DATA", { exact: true })).toHaveCount(0);
   active = false;
@@ -122,7 +122,7 @@ test("logout supplies CSRF and clears the authenticated shell", async ({
     await route.fulfill({ status: 201, json: { status: "revoked" } });
   });
   await page.goto("/overview");
-  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("button", { name: /jamie\.testnet owner/i }).click();
@@ -173,7 +173,7 @@ test("first wallet session creates an owner organization with CSRF", async ({
   await page.getByLabel("Workspace name").fill("North Star");
   await expect(page.getByLabel("Workspace URL key")).toHaveValue("north-star");
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.getByRole("link", { name: /North Star/i })).toBeVisible();

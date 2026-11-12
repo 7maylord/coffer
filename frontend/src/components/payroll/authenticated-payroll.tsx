@@ -37,7 +37,7 @@ const payrollAssets = [
 function message(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === "UNAVAILABLE")
-      return "Verified private AI is unavailable or disabled. No private-inference result was accepted.";
+      return "Payroll encryption or private analysis is unavailable. No protected data was exposed.";
     if (error.code === "CONFLICT")
       return "The payroll manifest changed or this reference already exists. Refresh before approving.";
     if (error.code === "FORBIDDEN")

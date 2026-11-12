@@ -36,7 +36,7 @@ function SignIn() {
   const busy = status === "authenticating";
   return (
     <AuthFrame>
-      <span className="eyebrow">NEAR TESTNET · VERIFIED ACCESS</span>
+      <span className="eyebrow">VERIFIED ACCESS</span>
       <h1>Step into your coffer.</h1>
       <p>
         Your wallet signs a one-time NEP-413 message. It does not send a

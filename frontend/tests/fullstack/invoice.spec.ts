@@ -26,7 +26,7 @@ test.beforeAll(() => {
   ) as Fixture;
 });
 
-test("J-01 reaches paid through the real API and mock reconciliation", async ({
+test("J-01 creates an issued invoice and exposes verified wallet settlement", async ({
   context,
   page,
 }) => {
@@ -50,14 +50,14 @@ test("J-01 reaches paid through the real API and mock reconciliation", async ({
 
   const invoiceNumber = `FULLSTACK-${Date.now()}`;
   await page.goto("/invoices");
-  await expect(page.getByText("SANDBOX", { exact: true })).toBeVisible();
+  await expect(page.getByText("CONNECTED", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Create invoice" }).click();
   await page.getByLabel("Invoice number").fill(invoiceNumber);
   await page.getByLabel("Due date").fill("2099-12-31");
   await page.getByLabel("Customer name").fill("Full-stack Customer");
   await page.getByLabel("Customer email").fill("customer@example.test");
   await page.getByLabel("Line item").fill("Synthetic integration work");
-  await page.getByLabel("Amount · Mock USDC").fill("12.500001");
+  await page.getByLabel("Amount · NEAR").fill("12.500001");
   await page.getByLabel("NEAR recipient").fill("merchant.testnet");
   await page.getByRole("button", { name: "Create draft" }).click();
 
@@ -72,23 +72,17 @@ test("J-01 reaches paid through the real API and mock reconciliation", async ({
 
   await page.goto(payerPath!);
   await expect(page.getByText(`INVOICE ${invoiceNumber}`)).toBeVisible();
-  await page.getByLabel("Mock refund destination").fill("payer.testnet");
-  await page.getByRole("button", { name: /Review mock quote/ }).click();
   await expect(
-    page.getByRole("heading", { name: "Everything before authorization." }),
+    page.getByRole("heading", { name: /Approve the exact invoice amount/ }),
   ).toBeVisible();
-  await page.getByRole("button", { name: /Authorize mock payment/ }).click();
-
-  for (let poll = 0; poll < 3; poll += 1) {
-    await page.getByRole("button", { name: /Check settlement/ }).click();
-  }
-  await expect(page.getByText("Reconciled", { exact: true })).toBeVisible();
-  await expect(page.getByText("PAID · PAID", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Pay with NEAR wallet/ }),
+  ).toBeVisible();
 
   await page.goto("/invoices");
   await page.getByRole("button", { name: new RegExp(invoiceNumber) }).click();
   const invoiceDialog = page.getByRole("dialog");
-  await expect(invoiceDialog.locator(".api-status")).toHaveText("PAID");
+  await expect(invoiceDialog.locator(".api-status")).toHaveText("UNPAID");
   await expect(
     invoiceDialog.getByText("12.500001", { exact: true }).first(),
   ).toBeVisible();

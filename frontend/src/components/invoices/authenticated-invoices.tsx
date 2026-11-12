@@ -15,8 +15,9 @@ import {
 import { assetLabel, formatAtomic, parseAtomic } from "@/lib/atomic";
 import { canWriteInvoices } from "@/lib/workspace-access";
 
-const DECIMALS = 6;
-const CURRENCY = "mock:near:usdc";
+const CURRENCY = "near:testnet:native";
+const decimalsFor = (assetId: string) =>
+  assetId === "near:testnet:native" ? 24 : 6;
 
 type DraftValues = {
   invoiceNumber: string;
@@ -120,11 +121,17 @@ export function AuthenticatedInvoices() {
   const totals = useMemo(
     () => ({
       outstanding: invoices.reduce(
-        (sum, invoice) => sum + BigInt(invoice.outstandingAmountAtomic),
+        (sum, invoice) =>
+          invoice.currency === CURRENCY
+            ? sum + BigInt(invoice.outstandingAmountAtomic)
+            : sum,
         0n,
       ),
       received: invoices.reduce(
-        (sum, invoice) => sum + BigInt(invoice.verifiedReceivedAtomic),
+        (sum, invoice) =>
+          invoice.currency === CURRENCY
+            ? sum + BigInt(invoice.verifiedReceivedAtomic)
+            : sum,
         0n,
       ),
       drafts: invoices.filter((invoice) => invoice.status === "DRAFT").length,
@@ -139,7 +146,9 @@ export function AuthenticatedInvoices() {
       customer: invoice.customer.displayName,
       email: invoice.customer.email ?? "",
       description: first?.description ?? "",
-      amount: first ? formatAtomic(first.amountAtomic, DECIMALS) : "",
+      amount: first
+        ? formatAtomic(first.amountAtomic, decimalsFor(invoice.currency))
+        : "",
       dueDate: invoice.dueDate.slice(0, 10),
       payeeDestination: invoice.payeeDestination,
     });
@@ -158,7 +167,7 @@ export function AuthenticatedInvoices() {
     lineItems: [
       {
         description: values.description.trim(),
-        amountAtomic: parseAtomic(values.amount, DECIMALS),
+        amountAtomic: parseAtomic(values.amount, decimalsFor(CURRENCY)),
       },
     ],
     metadata: {},
@@ -254,13 +263,15 @@ export function AuthenticatedInvoices() {
         <article>
           <span>Outstanding</span>
           <strong>
-            {formatAtomic(totals.outstanding.toString(), DECIMALS)}
+            {formatAtomic(totals.outstanding.toString(), decimalsFor(CURRENCY))}
           </strong>
           <small>{assetLabel(CURRENCY)}</small>
         </article>
         <article>
           <span>Verified received</span>
-          <strong>{formatAtomic(totals.received.toString(), DECIMALS)}</strong>
+          <strong>
+            {formatAtomic(totals.received.toString(), decimalsFor(CURRENCY))}
+          </strong>
           <small>Reconciled evidence only</small>
         </article>
         <article>
@@ -277,7 +288,7 @@ export function AuthenticatedInvoices() {
             <span className="eyebrow">BACKEND RECORDS</span>
             <h2>Invoices</h2>
           </div>
-          <span className="api-mode">MOCK SETTLEMENT</span>
+          <span className="api-mode">VERIFIED NEAR SETTLEMENT</span>
         </div>
         {loading ? (
           <p className="api-empty">Loading tenant-scoped invoices…</p>
@@ -298,7 +309,10 @@ export function AuthenticatedInvoices() {
                 </span>
                 <span className="api-invoice-amount">
                   <strong>
-                    {formatAtomic(invoice.totalAmountAtomic, DECIMALS)}
+                    {formatAtomic(
+                      invoice.totalAmountAtomic,
+                      decimalsFor(invoice.currency),
+                    )}
                   </strong>
                   <small>{assetLabel(invoice.currency)}</small>
                 </span>
@@ -321,7 +335,7 @@ export function AuthenticatedInvoices() {
           title={editor === "edit" ? "Refine the draft." : "A clear request."}
           close={() => setEditor(null)}
         >
-          <span className="eyebrow">EXACT AMOUNTS · MOCK USDC</span>
+          <span className="eyebrow">EXACT AMOUNTS · NEAR</span>
           <form className="form-stack" onSubmit={(event) => void submit(event)}>
             <div className="form-grid">
               <label>
@@ -381,7 +395,7 @@ export function AuthenticatedInvoices() {
             </label>
             <div className="form-grid">
               <label>
-                Amount · Mock USDC
+                Amount · NEAR
                 <input
                   required
                   inputMode="decimal"
@@ -452,13 +466,21 @@ export function AuthenticatedInvoices() {
                   key={`${item.description}:${item.amountAtomic}`}
                 >
                   <span>{item.description}</span>
-                  <strong>{formatAtomic(item.amountAtomic, DECIMALS)}</strong>
+                  <strong>
+                    {formatAtomic(
+                      item.amountAtomic,
+                      decimalsFor(selected.currency),
+                    )}
+                  </strong>
                 </div>
               ))}
               <div className="invoice-total">
                 <span>Total · {assetLabel(selected.currency)}</span>
                 <strong>
-                  {formatAtomic(selected.totalAmountAtomic, DECIMALS)}
+                  {formatAtomic(
+                    selected.totalAmountAtomic,
+                    decimalsFor(selected.currency),
+                  )}
                 </strong>
               </div>
               <small>
@@ -472,13 +494,19 @@ export function AuthenticatedInvoices() {
                 <div>
                   <dt>Verified</dt>
                   <dd>
-                    {formatAtomic(selected.verifiedReceivedAtomic, DECIMALS)}
+                    {formatAtomic(
+                      selected.verifiedReceivedAtomic,
+                      decimalsFor(selected.currency),
+                    )}
                   </dd>
                 </div>
                 <div>
                   <dt>Outstanding</dt>
                   <dd>
-                    {formatAtomic(selected.outstandingAmountAtomic, DECIMALS)}
+                    {formatAtomic(
+                      selected.outstandingAmountAtomic,
+                      decimalsFor(selected.currency),
+                    )}
                   </dd>
                 </div>
                 <div>

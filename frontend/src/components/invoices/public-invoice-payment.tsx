@@ -1,82 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { useAuth } from "@/components/auth/auth-provider";
 import { Icon, Mark } from "@/components/coffer/icon";
-import { StateToast } from "@/components/ui/state-toast";
 import {
   ApiError,
   cofferApi,
   type PublicInvoice,
   type PublicPayment,
-  type PublicQuote,
-  type SettlementAssets,
 } from "@/lib/coffer-api";
 import { assetLabel, formatAtomic } from "@/lib/atomic";
 
-const terminal = new Set<PublicPayment["status"]>([
-  "SETTLED",
-  "REFUNDED",
-  "FAILED",
-  "EXPIRED",
-  "UNDERFUNDED",
-  "UNKNOWN_REQUIRES_RECONCILIATION",
-]);
-
-function paymentMessage(status: PublicPayment["status"]): string {
-  if (status === "SETTLED")
-    return "Verified settlement received. The invoice record can now become paid.";
-  if (status === "REFUNDED")
-    return "The mock route refunded the source amount. The invoice remains unpaid.";
-  if (status === "UNDERFUNDED")
-    return "The deposit was incomplete. The invoice remains open for reconciliation.";
-  if (status === "UNKNOWN_REQUIRES_RECONCILIATION")
-    return "Provider status is unknown. Coffer refuses to assume success.";
-  if (status === "FAILED" || status === "EXPIRED")
-    return "This attempt ended without settlement.";
-  return "Coffer is waiting for independently verified settlement evidence.";
-}
-
 export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
+  const { session, signInWithWallet, signInvoicePayment, status } = useAuth();
   const [invoice, setInvoice] = useState<PublicInvoice | null>(null);
-  const [assets, setAssets] = useState<SettlementAssets | null>(null);
-  const [source, setSource] = useState("");
-  const [refundTo, setRefundTo] = useState("");
-  const [scenario, setScenario] = useState<
-    | "success"
-    | "refund"
-    | "unknown"
-    | "partial_deposit"
-    | "status_delay"
-    | "duplicate_callback"
-  >("success");
-  const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [payment, setPayment] = useState<PublicPayment | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const refreshInvoice = async () =>
-    setInvoice(await cofferApi.publicInvoice(publicToken));
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      cofferApi.publicInvoice(publicToken),
-      cofferApi.publicSettlementAssets(publicToken),
-    ])
-      .then(([nextInvoice, nextAssets]) => {
-        if (!active) return;
-        setInvoice(nextInvoice);
-        setAssets(nextAssets);
-        setSource(
-          nextAssets.assets.find((asset) => asset.id !== nextInvoice.currency)
-            ?.id ?? "",
-        );
-      })
+    cofferApi
+      .publicInvoice(publicToken)
+      .then((value) => active && setInvoice(value))
       .catch((cause) => {
         if (!active) return;
-        setError(
+        setLoadError(
           cause instanceof ApiError && cause.status === 404
             ? "This invoice link is invalid or no longer available."
             : "The invoice could not be loaded.",
@@ -88,65 +40,37 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
     };
   }, [publicToken]);
 
-  const decimals = useMemo(
-    () =>
-      assets?.assets.find((asset) => asset.id === invoice?.currency)
-        ?.decimals ?? 6,
-    [assets, invoice],
-  );
-
-  const createQuote = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setQuote(
-        await cofferApi.createPublicQuote(publicToken, {
-          sourceAssetId: source,
-          refundTo: refundTo.trim(),
-          slippageBps: 50,
-          scenario,
-        }),
-      );
-    } catch {
-      setError(
-        "The mock quote could not be created. Check the refund destination and invoice state.",
-      );
-    } finally {
-      setBusy(false);
+  const pay = async () => {
+    if (!invoice) return;
+    const signer = session?.wallets.find(
+      ({ network }) => network === "testnet",
+    )?.accountId;
+    if (!signer) {
+      toast.error("Connect and verify a NEAR wallet before paying.");
+      return;
     }
-  };
-
-  const authorize = async () => {
-    if (!quote) return;
     setBusy(true);
-    setError("");
     try {
-      setPayment(
-        await cofferApi.initiatePublicPayment(
-          publicToken,
-          quote.id,
-          crypto.randomUUID(),
-        ),
+      const prepared = await cofferApi.preparePublicNearPayment(
+        publicToken,
+        signer,
+        crypto.randomUUID(),
       );
-    } catch {
-      setError(
-        "The mock authorization could not be recorded. The quote may have expired.",
+      const transactionHash = await signInvoicePayment(invoice, prepared);
+      const settled = await cofferApi.submitPublicNearPayment(
+        publicToken,
+        prepared.payment.id,
+        transactionHash,
       );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const poll = async () => {
-    if (!payment) return;
-    setBusy(true);
-    setError("");
-    try {
-      const next = await cofferApi.pollPublicPayment(publicToken, payment.id);
-      setPayment(next);
-      if (terminal.has(next.status)) await refreshInvoice();
-    } catch {
-      setError("Coffer could not refresh the settlement evidence.");
+      setPayment(settled);
+      setInvoice(await cofferApi.publicInvoice(publicToken));
+      toast.success("Payment verified on NEAR and applied to the invoice.");
+    } catch (cause) {
+      toast.error(
+        cause instanceof ApiError && cause.code === "UNAVAILABLE"
+          ? "Live testnet settlement is not enabled on the API."
+          : "The payment was not credited. No unverified transfer was accepted.",
+      );
     } finally {
       setBusy(false);
     }
@@ -164,14 +88,17 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
         <section className="payer-error">
           <Mark />
           <h1>Invoice unavailable.</h1>
-          <p>{error}</p>
+          <p>{loadError}</p>
           <Link href="/">Return to Coffer</Link>
         </section>
       </main>
     );
 
+  const decimals = invoice.currency === "near:testnet:native" ? 24 : 6;
   const payable =
-    invoice.status === "ISSUED" && invoice.outstandingAmountAtomic !== "0";
+    invoice.status === "ISSUED" &&
+    invoice.outstandingAmountAtomic !== "0" &&
+    invoice.currency.startsWith("near:testnet:");
   return (
     <main className="payer-page">
       <nav className="payer-nav">
@@ -179,7 +106,7 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
           <Mark /> coffer.
         </Link>
         <span>
-          <i /> MOCK PAYMENT LAB
+          <i /> VERIFIED PAYMENT
         </span>
       </nav>
       <section className="payer-shell">
@@ -221,15 +148,13 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
             </div>
             <div>
               <dt>Invoice state</dt>
-              <dd>
-                {invoice.status} · {invoice.paymentState.replaceAll("_", " ")}
-              </dd>
+              <dd>{invoice.paymentState.replaceAll("_", " ")}</dd>
             </div>
           </dl>
           <p className="privacy-line">
             <Icon name="shield" size={16} />
-            The hosted view excludes customer identity, email, workspace,
-            creator and metadata.
+            Customer identity and workspace metadata are excluded from this
+            payment page.
           </p>
         </article>
 
@@ -237,190 +162,59 @@ export function PublicInvoicePayment({ publicToken }: { publicToken: string }) {
           <div className="payer-step">
             <span>01</span>
             <div>
-              <small>ROUTE</small>
-              <h2>Choose the mock source.</h2>
+              <small>WALLET</small>
+              <h2>Approve the exact invoice amount.</h2>
             </div>
           </div>
-          {!payment && !quote && (
-            <div className="payer-form">
-              <label>
-                Pay from
-                <select
-                  value={source}
-                  onChange={(event) => setSource(event.target.value)}
-                >
-                  {assets?.assets
-                    .filter((asset) => asset.id !== invoice.currency)
-                    .map((asset) => (
-                      <option key={asset.id} value={asset.id}>
-                        {assetLabel(asset.id)}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
-                Mock refund destination
-                <input
-                  value={refundTo}
-                  onChange={(event) => setRefundTo(event.target.value)}
-                  placeholder="payer.testnet"
-                />
-              </label>
-              <label>
-                Demo settlement outcome
-                <select
-                  value={scenario}
-                  onChange={(event) =>
-                    setScenario(event.target.value as typeof scenario)
-                  }
-                >
-                  <option value="success">Verified settlement</option>
-                  <option value="refund">Refund</option>
-                  <option value="unknown">Unknown status</option>
-                  <option value="partial_deposit">Underfunded</option>
-                  <option value="status_delay">Delayed settlement</option>
-                  <option value="duplicate_callback">Duplicate callback</option>
-                </select>
-              </label>
-              <p className="mock-disclosure">
-                <strong>Simulation only.</strong> This does not open a wallet,
-                request a signature, or move testnet/mainnet funds.
-              </p>
-              <button
-                className="button dark large"
-                disabled={!payable || busy || !source || !refundTo.trim()}
-                onClick={() => void createQuote()}
-              >
-                {busy ? "Building quote…" : "Review mock quote"}
-                <Icon name="arrow" size={17} />
-              </button>
-            </div>
-          )}
-
-          {quote && !payment && (
-            <div className="quote-card">
-              <div className="payer-step">
-                <span>02</span>
-                <div>
-                  <small>REVIEW</small>
-                  <h2>Everything before authorization.</h2>
-                </div>
+          <div className="payer-form">
+            <p>
+              Coffer credits this invoice only after the final NEAR transaction
+              matches the signer, recipient, asset, and atomic amount below.
+            </p>
+            <dl>
+              <div>
+                <dt>Signer</dt>
+                <dd>{session?.wallets[0]?.accountId ?? "Not connected"}</dd>
               </div>
-              <dl>
-                <div>
-                  <dt>You provide</dt>
-                  <dd>
-                    {formatAtomic(quote.amountAtomic, decimals)} ·{" "}
-                    {assetLabel(quote.sourceAssetId)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Expected</dt>
-                  <dd>
-                    {formatAtomic(quote.expectedAmountAtomic, decimals)} ·{" "}
-                    {assetLabel(quote.destinationAssetId)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Mock fee</dt>
-                  <dd>0</dd>
-                </div>
-                <div>
-                  <dt>Slippage limit</dt>
-                  <dd>{quote.slippageBps} bps</dd>
-                </div>
-                <div>
-                  <dt>Recipient</dt>
-                  <dd>{quote.recipient}</dd>
-                </div>
-                <div>
-                  <dt>Refund to</dt>
-                  <dd>{quote.refundTo}</dd>
-                </div>
-                <div>
-                  <dt>Privacy</dt>
-                  <dd>{quote.confidentiality}</dd>
-                </div>
-                <div>
-                  <dt>Expires</dt>
-                  <dd>{new Date(quote.expiresAt).toLocaleTimeString()}</dd>
-                </div>
-              </dl>
+              <div>
+                <dt>Recipient</dt>
+                <dd>{invoice.payeeDestination}</dd>
+              </div>
+              <div>
+                <dt>Amount</dt>
+                <dd>{invoice.outstandingAmountAtomic} atomic</dd>
+              </div>
+            </dl>
+            {status !== "authenticated" ? (
               <button
                 className="button dark large"
-                disabled={busy}
-                onClick={() => void authorize()}
+                disabled={status === "loading" || status === "authenticating"}
+                onClick={() => void signInWithWallet()}
               >
-                {busy ? "Recording…" : "Authorize mock payment"}
+                Connect NEAR wallet <Icon name="arrow" size={17} />
+              </button>
+            ) : (
+              <button
+                className="button dark large"
+                disabled={!payable || busy}
+                onClick={() => void pay()}
+              >
+                {busy ? "Verifying payment…" : "Pay with NEAR wallet"}
                 <Icon name="shield" size={17} />
               </button>
-              <button className="text-link" onClick={() => setQuote(null)}>
-                Change route
-              </button>
-            </div>
-          )}
-
-          {payment && (
-            <div className="payment-track">
-              <div className="payer-step">
-                <span>03</span>
-                <div>
-                  <small>RECONCILE</small>
-                  <h2>{payment.status.replaceAll("_", " ")}</h2>
-                </div>
-              </div>
-              <p className="payment-explanation">
-                {paymentMessage(payment.status)}
+            )}
+            {!payable && invoice.paymentState !== "PAID" && (
+              <p>This invoice asset is not enabled for wallet settlement.</p>
+            )}
+            {payment?.status === "SETTLED" && (
+              <p role="status">
+                <strong>Settlement verified.</strong> The immutable payment
+                record is now linked to this invoice.
               </p>
-              <ol>
-                {payment.history.map((item) => (
-                  <li
-                    key={item.eventId}
-                    className={item.status === payment.status ? "active" : ""}
-                  >
-                    <i />
-                    <span>
-                      {item.status.replaceAll("_", " ")}
-                      <small>
-                        {new Date(item.observedAt).toLocaleTimeString()}
-                      </small>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              {!terminal.has(payment.status) && (
-                <button
-                  className="button dark large"
-                  disabled={busy}
-                  onClick={() => void poll()}
-                >
-                  {busy ? "Checking evidence…" : "Check settlement"}
-                  <Icon name="refresh" size={17} />
-                </button>
-              )}
-              {terminal.has(payment.status) && (
-                <div
-                  className={`terminal-card is-${payment.status.toLowerCase()}`}
-                >
-                  <strong>
-                    {payment.status === "SETTLED" ? "Reconciled" : "Not paid"}
-                  </strong>
-                  <span>
-                    Settlement postings: {payment.settlementPostingCount} ·
-                    refunds: {payment.refundPostingCount}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          <StateToast id="public-invoice-error" message={error} />
+            )}
+          </div>
         </aside>
       </section>
-      <footer className="payer-footer">
-        <span>Bearer-link access · share carefully</span>
-        <span>Provider: deterministic mock adapter</span>
-        <span>No private payment claim</span>
-      </footer>
     </main>
   );
 }

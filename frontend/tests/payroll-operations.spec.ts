@@ -238,7 +238,7 @@ test("finance reviews exact encrypted payroll evidence and approves its manifest
   await expect(page.getByText("NOT_REQUESTED")).toBeVisible();
   await page.getByRole("button", { name: "Try verified private AI" }).click();
   await expect(
-    page.getByText("Verified private AI is unavailable", { exact: false }),
+    page.getByText("private analysis is unavailable", { exact: false }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Approve exact manifest" }).click();
   expect(page.url()).not.toContain("1000000");
