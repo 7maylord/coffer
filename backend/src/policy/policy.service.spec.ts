@@ -14,6 +14,7 @@ import {
 } from './near-policy-contract.js';
 import { DeterministicPolicyEngine } from './policy-engine.js';
 import { PolicyService } from './policy.service.js';
+import { PolicyConflictError } from './policy.types.js';
 import type {
   ActivePolicy,
   PolicyRules,
@@ -114,6 +115,17 @@ describe('PolicyService', () => {
         .mockImplementation((_organizationId, proposalId) =>
           Promise.resolve(records.find(({ id }) => id === proposalId) ?? null),
         ),
+      proposalByKey: vi
+        .fn()
+        .mockImplementation((_organizationId, proposalKey, revision) =>
+          Promise.resolve(
+            records.find(
+              (record) =>
+                record.proposalKey === proposalKey &&
+                record.revision === revision,
+            ) ?? null,
+          ),
+        ),
       proposals: vi.fn().mockImplementation(() => Promise.resolve(records)),
       cancelProposal: vi.fn().mockImplementation(({ proposalId }) => {
         const record = records.find(({ id }) => id === proposalId)!;
@@ -187,6 +199,30 @@ describe('PolicyService', () => {
       approvals: [],
     });
     expect(revised.instructionDigest).not.toBe(created.instructionDigest);
+  });
+
+  it('recovers the exact deterministic proposal after a crash before linkage', async () => {
+    const proposalKey = '11111111-1111-4111-8111-111111111111';
+    const existing = await service.createIdempotent(
+      'owner-id',
+      'org-id',
+      proposalKey,
+      material,
+      now,
+    );
+    vi.mocked(store.createProposal).mockRejectedValueOnce(
+      new PolicyConflictError('duplicate'),
+    );
+
+    await expect(
+      service.createIdempotent(
+        'owner-id',
+        'org-id',
+        proposalKey,
+        material,
+        now,
+      ),
+    ).resolves.toEqual(existing);
   });
 
   it('records and rejects missing-policy and hard-deny decisions', async () => {

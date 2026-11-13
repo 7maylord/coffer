@@ -140,16 +140,13 @@ export class AutomationService {
       );
     }
     const responseDigest = safeDigest(result.output);
-    const parsed = cfoOutputSchema.safeParse(result.output);
-    if (
-      !parsed.success ||
-      !validAllocations(
-        parsed.success ? parsed.data.allocations : [],
-        normalized.allowedCategories,
-        normalized.supportingRecordIds,
-        normalized.maximumAmountAtomic,
-      )
-    ) {
+    const decision = validateCfoDecision(
+      result.output,
+      normalized.allowedCategories,
+      normalized.supportingRecordIds,
+      normalized.maximumAmountAtomic,
+    );
+    if (!decision) {
       await this.store.recordInferenceFailure({
         organizationId,
         actorUserId,
@@ -179,7 +176,7 @@ export class AutomationService {
       sourceAccountId: normalized.sourceAccountId,
       assetId: normalized.assetId,
       maximumAmountAtomic: normalized.maximumAmountAtomic,
-      allocations: parsed.data.allocations,
+      allocations: decision.allocations,
       supportingRecordIds: normalized.supportingRecordIds,
     });
   }
@@ -465,17 +462,37 @@ export class AutomationService {
       agentId,
       offerDigest: offer.offerDigest,
     });
-    const purchase = await this.store.claimPurchase({
-      organizationId,
-      agentId,
-      offerId,
-      requestDigest,
-      now,
-    });
+    const existing = await this.store.purchaseForOffer(organizationId, offerId);
+    if (
+      existing &&
+      (existing.agentId !== agentId || existing.requestDigest !== requestDigest)
+    ) {
+      throw new AutomationError(
+        'PURCHASE_DUPLICATE',
+        'Offer already has a different purchase claim',
+      );
+    }
+    if (existing?.status === 'AWAITING_APPROVAL') return existing;
+    if (existing && existing.status !== 'CLAIMED') {
+      throw new AutomationError(
+        'PURCHASE_DUPLICATE',
+        'Offer purchase is already terminal',
+      );
+    }
+    const purchase =
+      existing ??
+      (await this.store.claimPurchase({
+        organizationId,
+        agentId,
+        offerId,
+        requestDigest,
+        now,
+      }));
     try {
-      const proposal = await this.policies.create(
+      const proposal = await this.policies.createIdempotent(
         actorUserId,
         organizationId,
+        purchase.id,
         {
           proposalType: 'AGENT_PURCHASE',
           chainId: offer.chainId,
@@ -612,6 +629,24 @@ export class AutomationService {
       );
     }
   }
+}
+
+export function validateCfoDecision(
+  output: unknown,
+  categories: string[],
+  records: string[],
+  maximumAmountAtomic: string,
+) {
+  const parsed = cfoOutputSchema.safeParse(output);
+  return parsed.success &&
+    validAllocations(
+      parsed.data.allocations,
+      categories,
+      records,
+      maximumAmountAtomic,
+    )
+    ? parsed.data
+    : null;
 }
 
 function normalizeCfoInput(input: {

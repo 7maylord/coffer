@@ -129,6 +129,35 @@ describe('policy and proposal transaction invariants', () => {
     ).rejects.toThrow();
   });
 
+  it('recovers one purchase-keyed proposal after the linkage crash window', async () => {
+    const proposalKey = randomUUID();
+    const proposalMaterial = material(
+      '103',
+      new Date('2026-11-01T12:00:00.000Z'),
+    );
+    const created = await service.createIdempotent(
+      ownerId,
+      organizationId,
+      proposalKey,
+      proposalMaterial,
+      new Date('2026-10-30T00:00:30.000Z'),
+    );
+    await expect(
+      service.createIdempotent(
+        ownerId,
+        organizationId,
+        proposalKey,
+        proposalMaterial,
+        new Date('2026-10-30T00:00:31.000Z'),
+      ),
+    ).resolves.toEqual(created);
+    expect(
+      await prisma.financialProposal.count({
+        where: { organizationId, proposalKey, revision: 1 },
+      }),
+    ).toBe(1);
+  });
+
   it('T-POL-06 counts one human once even when that user has two verified wallets', async () => {
     const proposal = await latest();
     const principalA = {

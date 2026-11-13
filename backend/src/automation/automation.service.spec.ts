@@ -112,6 +112,7 @@ function store(overrides: Partial<AutomationStore> = {}) {
     attachFinancialProposal: vi.fn(),
     failPurchase: vi.fn().mockResolvedValue(undefined),
     purchase: vi.fn().mockResolvedValue(null),
+    purchaseForOffer: vi.fn().mockResolvedValue(null),
     purchases: vi.fn().mockResolvedValue([]),
     completePurchase: vi.fn(),
     ...overrides,
@@ -135,6 +136,7 @@ function fixture(
   } as unknown as LedgerService;
   const policies = {
     create: vi.fn().mockResolvedValue({ id: financialProposalId }),
+    createIdempotent: vi.fn().mockResolvedValue({ id: financialProposalId }),
     get: vi.fn().mockResolvedValue(null),
     activeOrNull: vi.fn().mockResolvedValue(null),
     activate: vi.fn().mockResolvedValue({ id: financialProposalId }),
@@ -232,7 +234,7 @@ describe('AutomationService CFO proposals', () => {
         expect.objectContaining({ status: 'INVALID' }),
       );
       expect(test.ledger.reserve).not.toHaveBeenCalled();
-      expect(test.policies.create).not.toHaveBeenCalled();
+      expect(test.policies.createIdempotent).not.toHaveBeenCalled();
     },
   );
 
@@ -742,7 +744,7 @@ describe('AutomationService agent commerce', () => {
         now,
       ),
     ).rejects.toMatchObject({ code: 'OFFER_EXPIRED' });
-    expect(test.policies.create).not.toHaveBeenCalled();
+    expect(test.policies.createIdempotent).not.toHaveBeenCalled();
   });
 
   it('binds the exact immutable offer to the central policy proposal', async () => {
@@ -781,9 +783,10 @@ describe('AutomationService agent commerce', () => {
         now,
       ),
     ).resolves.toMatchObject({ status: 'AWAITING_APPROVAL' });
-    expect(test.policies.create).toHaveBeenCalledWith(
+    expect(test.policies.createIdempotent).toHaveBeenCalledWith(
       actorUserId,
       organizationId,
+      purchaseId,
       expect.objectContaining({
         proposalType: 'AGENT_PURCHASE',
         amountAtomic: offer.priceAtomic,
@@ -794,6 +797,47 @@ describe('AutomationService agent commerce', () => {
       }),
       now,
     );
+  });
+
+  it('reuses an already-linked purchase after an outbox restart', async () => {
+    const offer = validOffer();
+    const purchase = {
+      id: purchaseId,
+      organizationId,
+      agentId,
+      offerId,
+      financialProposalId,
+      status: 'AWAITING_APPROVAL' as const,
+      requestDigest: hash({
+        operation: 'agent-purchase-proposal',
+        organizationId,
+        agentId,
+        offerDigest: offer.offerDigest,
+      }),
+      failureCode: null,
+      mockPaymentReference: null,
+      deliverable: null,
+      completedAt: null,
+      version: 2,
+    };
+    const automationStore = store({
+      agent: vi.fn().mockResolvedValue(activeAgent),
+      offer: vi.fn().mockResolvedValue(offer),
+      purchaseForOffer: vi.fn().mockResolvedValue(purchase),
+    });
+    const test = fixture({ store: automationStore, agentExecution: true });
+
+    await expect(
+      test.service.createPurchaseProposal(
+        organizationId,
+        actorUserId,
+        agentId,
+        offerId,
+        now,
+      ),
+    ).resolves.toEqual(purchase);
+    expect(automationStore.claimPurchase).not.toHaveBeenCalled();
+    expect(test.policies.createIdempotent).not.toHaveBeenCalled();
   });
 
   it('records a denied purchase when central policy rejects it', async () => {
@@ -817,7 +861,7 @@ describe('AutomationService agent commerce', () => {
       claimPurchase: vi.fn().mockResolvedValue(purchase),
     });
     const test = fixture({ store: automationStore, agentExecution: true });
-    vi.mocked(test.policies.create).mockRejectedValue(
+    vi.mocked(test.policies.createIdempotent).mockRejectedValue(
       new ForbiddenException('policy denied'),
     );
     await expect(
@@ -905,7 +949,7 @@ describe('AutomationService agent commerce', () => {
         now,
       ),
     ).rejects.toMatchObject({ code: 'PURCHASE_DUPLICATE' });
-    expect(test.policies.create).not.toHaveBeenCalled();
+    expect(test.policies.createIdempotent).not.toHaveBeenCalled();
   });
 
   it('T-AGT-06 immediately blocks revoked agents from offers and execution', async () => {

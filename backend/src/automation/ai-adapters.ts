@@ -117,11 +117,10 @@ export class NearAiCfoInferenceAdapter implements CfoInferenceAdapter {
     const approved = new Set(
       this.environment.NEAR_AI_ALLOWED_DEPLOYMENT_DIGESTS,
     );
-    if (
-      receipt.attestations.some(
-        ({ deployment }) => !approved.has(nearAiDeploymentDigest(deployment)),
-      )
-    ) {
+    const deploymentDigests = receipt.attestations.map(({ deployment }) =>
+      nearAiDeploymentDigest(deployment),
+    );
+    if (deploymentDigests.some((value) => !approved.has(value))) {
       throw new Error('CFO response used an unapproved deployment');
     }
     let output: unknown;
@@ -137,6 +136,13 @@ export class NearAiCfoInferenceAdapter implements CfoInferenceAdapter {
       model: this.model,
       providerRequestId: completion.data.id,
       attestationStatus: 'VERIFIED_PROVIDER_TEE',
+      verificationEvidence: {
+        verificationMethod: 'nearai-inference-sdk-v0.3',
+        signatureKind: 'provider_tee',
+        signingAlgo: 'ed25519',
+        signingAddress: receipt.signature.signer.signingAddress,
+        deploymentDigests,
+      },
       output,
     };
   }

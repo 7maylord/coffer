@@ -49,6 +49,13 @@ export type CfoInferenceResult = {
   model: string;
   providerRequestId?: string;
   attestationStatus: 'NOT_REQUESTED' | 'VERIFIED_PROVIDER_TEE';
+  verificationEvidence?: {
+    verificationMethod: 'nearai-inference-sdk-v0.3';
+    signatureKind: 'provider_tee';
+    signingAlgo: 'ed25519';
+    signingAddress: string;
+    deploymentDigests: string[];
+  };
   output: unknown;
 };
 
@@ -267,6 +274,10 @@ export interface AutomationStore {
   purchase(
     organizationId: string,
     purchaseId: string,
+  ): Promise<PurchaseView | null>;
+  purchaseForOffer(
+    organizationId: string,
+    offerId: string,
   ): Promise<PurchaseView | null>;
   purchases(organizationId: string): Promise<PurchaseView[]>;
   completePurchase(input: {

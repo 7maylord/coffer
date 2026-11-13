@@ -93,6 +93,41 @@ export class PolicyService {
     });
   }
 
+  async createIdempotent(
+    actorUserId: string,
+    organizationId: string,
+    proposalKey: string,
+    material: ProposalMaterialInput,
+    now = new Date(),
+  ): Promise<ProposalRecord> {
+    const existing = await this.store.proposalByKey(
+      organizationId,
+      proposalKey,
+      1,
+    );
+    if (existing)
+      return requireMatchingProposal(existing, actorUserId, material);
+    try {
+      return await this.createRevision({
+        actorUserId,
+        organizationId,
+        material,
+        now,
+        proposalKey,
+        revision: 1,
+      });
+    } catch (error) {
+      if (!(error instanceof ConflictException)) throw error;
+      const raced = await this.store.proposalByKey(
+        organizationId,
+        proposalKey,
+        1,
+      );
+      if (!raced) throw error;
+      return requireMatchingProposal(raced, actorUserId, material);
+    }
+  }
+
   async revise(
     actorUserId: string,
     organizationId: string,
@@ -481,6 +516,33 @@ function summary(material: ProposalMaterialInput): Record<string, unknown> {
     agentId: material.agentId,
     vendorId: material.vendorId,
   };
+}
+
+function requireMatchingProposal(
+  proposal: ProposalRecord,
+  actorUserId: string,
+  material: ProposalMaterialInput,
+): ProposalRecord {
+  if (
+    proposal.createdByUserId !== actorUserId ||
+    !['PENDING', 'APPROVED'].includes(proposal.status) ||
+    proposal.proposalType !== material.proposalType ||
+    proposal.chainId !== material.chainId ||
+    proposal.assetId !== material.assetId ||
+    proposal.amountAtomic !== material.amountAtomic ||
+    proposal.authorizedMaxAtomic !== material.authorizedMaxAtomic ||
+    proposal.recipientCommitment !== material.recipientCommitment ||
+    proposal.expiresAt.getTime() !== material.expiresAt.getTime() ||
+    proposal.nonceCommitment !== material.nonceCommitment ||
+    proposal.idempotencyKeyCommitment !== material.idempotencyKeyCommitment ||
+    proposal.operation !== material.operation ||
+    proposal.environment !== material.environment ||
+    proposal.agentId !== material.agentId ||
+    proposal.vendorId !== material.vendorId
+  ) {
+    throw new ConflictException('Proposal idempotency key conflict');
+  }
+  return proposal;
 }
 
 function mapStoreError(error: unknown): Error {

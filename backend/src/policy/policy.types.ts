@@ -166,6 +166,11 @@ export interface PolicyStore {
     organizationId: string,
     proposalId: string,
   ): Promise<ProposalRecord | null>;
+  proposalByKey(
+    organizationId: string,
+    proposalKey: string,
+    revision: number,
+  ): Promise<ProposalRecord | null>;
   proposals(organizationId: string): Promise<ProposalRecord[]>;
   cancelProposal(input: {
     organizationId: string;

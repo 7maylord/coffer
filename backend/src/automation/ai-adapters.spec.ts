@@ -88,6 +88,13 @@ describe('NearAiCfoInferenceAdapter', () => {
       model: 'z-ai/glm-5.3-flash',
       providerRequestId: 'completion-1',
       attestationStatus: 'VERIFIED_PROVIDER_TEE',
+      verificationEvidence: {
+        verificationMethod: 'nearai-inference-sdk-v0.3',
+        signatureKind: 'provider_tee',
+        signingAlgo: 'ed25519',
+        signingAddress: 'a'.repeat(64),
+        deploymentDigests: [deploymentDigest],
+      },
     });
     expect(sdk.verify).toHaveBeenCalledWith('z-ai/glm-5.3-flash');
     expect(sdk.verifyResponse).toHaveBeenCalledWith('completion-1');

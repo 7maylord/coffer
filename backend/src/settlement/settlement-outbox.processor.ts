@@ -148,9 +148,16 @@ export class SettlementOutboxProcessor implements OnModuleDestroy {
     const payload = postingPayloadSchema.parse(event.payload);
     const posting = await this.prisma.settlementPosting.findFirst({
       where: { id: payload.postingId, organizationId: event.organizationId },
+      include: { paymentAttempt: { select: { invoiceId: true } } },
     });
     if (!posting) throw new Error('Settlement posting not found');
-    if (posting.journalId) return;
+    const journalId = posting.journalId;
+    if (journalId) {
+      await this.prisma.$transaction((tx) =>
+        ensureFinanceAgentRun(tx, posting, journalId, event.id),
+      );
+      return;
+    }
 
     const prefix = payload.kind === 'SETTLEMENT' ? 'SETTLEMENT' : 'REFUND';
     const cash = await this.ledger.ensureAccount({
@@ -185,9 +192,16 @@ export class SettlementOutboxProcessor implements OnModuleDestroy {
         },
       ],
     });
-    await this.prisma.settlementPosting.updateMany({
-      where: { id: posting.id, journalId: null },
-      data: { journalId: result.journal.id, completedAt: now },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.settlementPosting.updateMany({
+        where: {
+          id: posting.id,
+          organizationId: event.organizationId,
+          journalId: null,
+        },
+        data: { journalId: result.journal.id, completedAt: now },
+      });
+      await ensureFinanceAgentRun(tx, posting, result.journal.id, event.id);
     });
   }
 
@@ -196,6 +210,54 @@ export class SettlementOutboxProcessor implements OnModuleDestroy {
     await this.loop;
     await this.prisma.$disconnect();
   }
+}
+
+async function ensureFinanceAgentRun(
+  tx: Prisma.TransactionClient,
+  posting: {
+    id: string;
+    organizationId: string;
+    paymentAttemptId: string;
+    kind: 'SETTLEMENT' | 'REFUND';
+    paymentAttempt: { invoiceId: string | null };
+  },
+  journalId: string,
+  correlationId: string,
+): Promise<void> {
+  const invoiceId = posting.paymentAttempt.invoiceId;
+  if (posting.kind !== 'SETTLEMENT' || !invoiceId) return;
+  const run = await tx.financeAgentRun.upsert({
+    where: { settlementPostingId: posting.id },
+    create: {
+      organizationId: posting.organizationId,
+      invoiceId,
+      paymentAttemptId: posting.paymentAttemptId,
+      settlementPostingId: posting.id,
+      sourceEvidenceIds: {
+        invoiceId,
+        paymentAttemptId: posting.paymentAttemptId,
+        settlementPostingId: posting.id,
+        journalId,
+      },
+      correlationId,
+    },
+    update: {},
+  });
+  await tx.outboxEvent.upsert({
+    where: {
+      topic_aggregateId: {
+        topic: 'finance-agent.decision.requested',
+        aggregateId: run.id,
+      },
+    },
+    create: {
+      organizationId: posting.organizationId,
+      topic: 'finance-agent.decision.requested',
+      aggregateId: run.id,
+      payload: { runId: run.id },
+    },
+    update: {},
+  });
 }
 
 function delay(milliseconds: number): Promise<void> {

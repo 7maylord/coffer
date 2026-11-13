@@ -222,6 +222,24 @@ export class PrismaPolicyStore implements PolicyStore, OnModuleDestroy {
     return proposal ? mapProposal(proposal) : null;
   }
 
+  async proposalByKey(
+    organizationId: string,
+    proposalKey: string,
+    revision: number,
+  ): Promise<ProposalRecord | null> {
+    const proposal = await this.prisma.financialProposal.findUnique({
+      where: {
+        organizationId_proposalKey_revision: {
+          organizationId,
+          proposalKey,
+          revision,
+        },
+      },
+      include: { approvals: { orderBy: { createdAt: 'asc' } } },
+    });
+    return proposal ? mapProposal(proposal) : null;
+  }
+
   async proposals(organizationId: string): Promise<ProposalRecord[]> {
     const proposals = await this.prisma.financialProposal.findMany({
       where: { organizationId },

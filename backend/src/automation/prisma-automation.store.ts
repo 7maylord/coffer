@@ -409,6 +409,13 @@ export class PrismaAutomationStore implements AutomationStore, OnModuleDestroy {
     return purchase ? mapPurchase(purchase) : null;
   }
 
+  async purchaseForOffer(organizationId: string, offerId: string) {
+    const purchase = await this.prisma.agentPurchase.findFirst({
+      where: { offerId, organizationId },
+    });
+    return purchase ? mapPurchase(purchase) : null;
+  }
+
   async purchases(organizationId: string) {
     return (
       await this.prisma.agentPurchase.findMany({

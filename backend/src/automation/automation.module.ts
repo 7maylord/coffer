@@ -20,6 +20,7 @@ import {
 } from './automation.types.js';
 import { SeededMockVendorAdapter } from './mock-vendor.adapter.js';
 import { PrismaAutomationStore } from './prisma-automation.store.js';
+import { FinanceAgentOutboxProcessor } from './finance-agent-outbox.processor.js';
 
 @Module({
   imports: [AuthModule, TreasuryModule, PolicyModule],
@@ -29,6 +30,7 @@ import { PrismaAutomationStore } from './prisma-automation.store.js';
     PrismaAutomationStore,
     MockCfoInferenceAdapter,
     NearAiCfoInferenceAdapter,
+    FinanceAgentOutboxProcessor,
     {
       provide: NEAR_AI_INFERENCE_CLIENT,
       inject: [APP_ENVIRONMENT],
@@ -51,6 +53,6 @@ import { PrismaAutomationStore } from './prisma-automation.store.js';
       ) => (environment.AI_CFO_PROVIDER === 'near-ai' ? nearAi : mock),
     },
   ],
-  exports: [AutomationService],
+  exports: [AutomationService, FinanceAgentOutboxProcessor],
 })
 export class AutomationModule {}
