@@ -58,6 +58,7 @@ enum PayrollPayoutRunStatus {
 
 enum PayrollPayoutItemStatus {
   PREPARED
+  RECONCILING
   VERIFIED
 }
 
@@ -182,6 +183,7 @@ model Organization {
   outboxEvents             OutboxEvent[]
   inboxEvents              InboxEvent[]
   settlementPostings       SettlementPosting[]
+  financeAgentRuns         FinanceAgentRun[]
   reconciliationCases      ReconciliationCase[]
   externalTransferEvidence ExternalTransferEvidence[]
   ledgerAccounts           LedgerAccount[]
@@ -279,32 +281,33 @@ model OrganizationInvite {
 }
 
 model Invoice {
-  id                     String           @id @default(uuid()) @db.Uuid
-  organizationId         String           @db.Uuid
+  id                     String            @id @default(uuid()) @db.Uuid
+  organizationId         String            @db.Uuid
   invoiceNumber          String
-  status                 InvoiceStatus    @default(DRAFT)
+  status                 InvoiceStatus     @default(DRAFT)
   currency               String
-  totalAmountAtomic      Decimal          @db.Decimal(78, 0)
-  publicTokenHash        String           @unique
+  totalAmountAtomic      Decimal           @db.Decimal(78, 0)
+  publicTokenHash        String            @unique
   payeeDestination       String
   customer               Json
   lineItems              Json
   metadata               Json
   dueDate                DateTime
-  verifiedReceivedAtomic Decimal          @default(0) @db.Decimal(78, 0)
-  revision               Int              @default(1)
-  version                Int              @default(1)
+  verifiedReceivedAtomic Decimal           @default(0) @db.Decimal(78, 0)
+  revision               Int               @default(1)
+  version                Int               @default(1)
   issuedAt               DateTime?
   expiredAt              DateTime?
   voidedAt               DateTime?
   paidAt                 DateTime?
-  createdByUserId        String           @db.Uuid
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  organization           Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdBy              User             @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdByUserId        String            @db.Uuid
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  organization           Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy              User              @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   paymentAttempts        PaymentAttempt[]
   quotes                 QuoteSnapshot[]
+  financeAgentRuns       FinanceAgentRun[]
 
   @@unique([id, organizationId])
   @@unique([organizationId, invoiceNumber])
@@ -360,7 +363,9 @@ model PaymentAttempt {
   statusHistory          PaymentStatusHistory[]
   postings               SettlementPosting[]
   reconciliationCase     ReconciliationCase?
+  financeAgentRuns       FinanceAgentRun[]
 
+  @@unique([id, organizationId])
   @@unique([organizationId, operation, idempotencyKey])
   @@unique([provider, providerTransferId])
   @@index([organizationId, status])
@@ -707,9 +712,69 @@ model SettlementPosting {
   completedAt      DateTime?
   organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   paymentAttempt   PaymentAttempt        @relation(fields: [paymentAttemptId], references: [id], onDelete: Restrict)
+  financeAgentRun  FinanceAgentRun?
 
+  @@unique([id, organizationId])
   @@unique([paymentAttemptId, kind])
   @@index([organizationId, createdAt])
+}
+
+model FinanceAgentRun {
+  id                     String              @id @default(uuid()) @db.Uuid
+  organizationId         String              @db.Uuid
+  invoiceId              String              @db.Uuid
+  paymentAttemptId       String              @db.Uuid
+  settlementPostingId    String              @unique @db.Uuid
+  triggerType            String              @default("INVOICE_SETTLED")
+  objective              String              @default("ALLOCATE_VERIFIED_INVOICE_REVENUE")
+  state                  String              @default("QUEUED")
+  version                Int                 @default(1)
+  sourceEvidenceIds      Json
+  correlationId          String
+  inferenceStatus        String              @default("PENDING")
+  inferenceProvider      String?
+  inferenceModel         String?
+  inputDigest            String?
+  responseDigest         String?
+  providerRequestId      String?
+  attestationStatus      String              @default("NOT_REQUESTED")
+  verificationEvidence   Json?
+  decision               Json?
+  errorCode              String?
+  decidedAt              DateTime?
+  policyOutcome          String?
+  policyInputsDigest     String?
+  policyDigest           String?
+  policyVersion          Int?
+  policyReasonCodes      Json?
+  instructionDigest      String?             @unique
+  actionMaterial         Json?
+  actionAssetId          String?
+  actionAmountAtomic     Decimal?            @db.Decimal(78, 0)
+  sourceAccountId        String?             @db.Uuid
+  reservationId          String?             @unique @db.Uuid
+  policyEvaluatedAt      DateTime?
+  actionErrorCode        String?
+  procurementAgentId     String?             @db.Uuid
+  procurementOfferId     String?             @db.Uuid
+  procurementPurchaseId  String?             @db.Uuid
+  procurementRequestedAt DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  invoice                Invoice             @relation(fields: [invoiceId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  paymentAttempt         PaymentAttempt      @relation(fields: [paymentAttemptId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  settlementPosting      SettlementPosting   @relation(fields: [settlementPostingId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  reservation            BalanceReservation? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  procurementAgent       AgentIdentity?      @relation(fields: [procurementAgentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  procurementOffer       ServiceOffer?       @relation(fields: [procurementOfferId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  procurementPurchase    AgentPurchase?      @relation(fields: [procurementPurchaseId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([settlementPostingId, organizationId])
+  @@unique([procurementOfferId, organizationId])
+  @@unique([procurementPurchaseId, organizationId])
+  @@index([organizationId, state, createdAt])
+  @@index([organizationId, actionAssetId, policyEvaluatedAt])
 }
 
 model ReconciliationCase {
@@ -791,23 +856,24 @@ model JournalLine {
 }
 
 model BalanceReservation {
-  id             String                 @id @default(uuid()) @db.Uuid
-  organizationId String                 @db.Uuid
-  assetId        String
-  accountId      String                 @db.Uuid
-  reference      String
-  requestDigest  String
-  amountAtomic   Decimal                @db.Decimal(78, 0)
-  status         ReservationStatus      @default(ACTIVE)
-  expiresAt      DateTime?
-  releasedAt     DateTime?
-  consumedAt     DateTime?
-  version        Int                    @default(1)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  account        LedgerAccount          @relation(fields: [accountId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
-  cfoProposal    CfoAllocationProposal? @relation("CfoReservation")
+  id              String                 @id @default(uuid()) @db.Uuid
+  organizationId  String                 @db.Uuid
+  assetId         String
+  accountId       String                 @db.Uuid
+  reference       String
+  requestDigest   String
+  amountAtomic    Decimal                @db.Decimal(78, 0)
+  status          ReservationStatus      @default(ACTIVE)
+  expiresAt       DateTime?
+  releasedAt      DateTime?
+  consumedAt      DateTime?
+  version         Int                    @default(1)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account         LedgerAccount          @relation(fields: [accountId, organizationId, assetId], references: [id, organizationId, assetId], onDelete: Restrict)
+  cfoProposal     CfoAllocationProposal? @relation("CfoReservation")
+  financeAgentRun FinanceAgentRun?
 
   @@unique([organizationId, reference])
   @@index([organizationId, assetId, accountId, status])
@@ -955,52 +1021,54 @@ model CfoAllocationProposal {
 }
 
 model AgentIdentity {
-  id                   String          @id @default(uuid()) @db.Uuid
-  organizationId       String          @db.Uuid
-  ownerUserId          String          @db.Uuid
+  id                   String            @id @default(uuid()) @db.Uuid
+  organizationId       String            @db.Uuid
+  ownerUserId          String            @db.Uuid
   purpose              String
   provider             String
-  status               AgentStatus     @default(ACTIVE)
+  status               AgentStatus       @default(ACTIVE)
   allowedActions       Json
   assetId              String
   chainId              String
-  maxAmountAtomic      Decimal         @db.Decimal(78, 0)
-  rollingBudgetAtomic  Decimal         @db.Decimal(78, 0)
-  rollingWindowSeconds Int             @default(86400)
+  maxAmountAtomic      Decimal           @db.Decimal(78, 0)
+  rollingBudgetAtomic  Decimal           @db.Decimal(78, 0)
+  rollingWindowSeconds Int               @default(86400)
   vendorAllowlist      Json
   expiresAt            DateTime
   revokedAt            DateTime?
-  version              Int             @default(1)
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-  organization         Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  owner                User            @relation("AgentOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  version              Int               @default(1)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  organization         Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  owner                User              @relation("AgentOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   offers               ServiceOffer[]
   purchases            AgentPurchase[]
+  financeAgentRuns     FinanceAgentRun[]
 
   @@unique([id, organizationId])
   @@index([organizationId, status, expiresAt])
 }
 
 model ServiceOffer {
-  id                  String         @id @default(uuid()) @db.Uuid
-  organizationId      String         @db.Uuid
-  agentId             String         @db.Uuid
+  id                  String           @id @default(uuid()) @db.Uuid
+  organizationId      String           @db.Uuid
+  agentId             String           @db.Uuid
   vendorId            String
   externalOfferId     String
   serviceCode         String
   requestDigest       String
-  offerDigest         String         @unique
+  offerDigest         String           @unique
   assetId             String
   chainId             String
-  priceAtomic         Decimal        @db.Decimal(78, 0)
+  priceAtomic         Decimal          @db.Decimal(78, 0)
   recipientCommitment String
   controlledTerms     Json
   expiresAt           DateTime
-  createdAt           DateTime       @default(now())
-  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  agent               AgentIdentity  @relation(fields: [agentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdAt           DateTime         @default(now())
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  agent               AgentIdentity    @relation(fields: [agentId, organizationId], references: [id, organizationId], onDelete: Restrict)
   purchase            AgentPurchase?
+  financeAgentRun     FinanceAgentRun?
 
   @@unique([id, organizationId])
   @@unique([organizationId, vendorId, externalOfferId])
@@ -1026,6 +1094,7 @@ model AgentPurchase {
   agent                AgentIdentity       @relation(fields: [agentId, organizationId], references: [id, organizationId], onDelete: Restrict)
   offer                ServiceOffer        @relation(fields: [offerId, organizationId], references: [id, organizationId], onDelete: Restrict)
   financialProposal    FinancialProposal?  @relation(fields: [financialProposalId], references: [id], onDelete: Restrict)
+  financeAgentRun      FinanceAgentRun?
 
   @@unique([id, organizationId])
   @@unique([offerId, organizationId])
