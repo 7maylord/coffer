@@ -8,6 +8,7 @@ import {
   ApiError,
   cofferApi,
   type AuditPage,
+  type FinanceAgentRun,
   type OperationsDashboard,
   type OperationsMetrics,
 } from "@/lib/coffer-api";
@@ -50,6 +51,7 @@ export function AuthenticatedOperations() {
   const [dashboard, setDashboard] = useState<OperationsDashboard | null>(null);
   const [metrics, setMetrics] = useState<OperationsMetrics | null>(null);
   const [audit, setAudit] = useState<AuditPage | null>(null);
+  const [financeRuns, setFinanceRuns] = useState<FinanceAgentRun[]>([]);
   const [eventType, setEventType] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -57,14 +59,16 @@ export function AuthenticatedOperations() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  const apply = ([nextDashboard, nextMetrics, nextAudit]: [
+  const apply = ([nextDashboard, nextMetrics, nextAudit, nextFinanceRuns]: [
     OperationsDashboard,
     OperationsMetrics,
     AuditPage,
+    FinanceAgentRun[],
   ]) => {
     setDashboard(nextDashboard);
     setMetrics(nextMetrics);
     setAudit(nextAudit);
+    setFinanceRuns(nextFinanceRuns);
   };
 
   const load = async (filter = activeFilter) => {
@@ -77,6 +81,7 @@ export function AuthenticatedOperations() {
           cofferApi.operationsDashboard(organizationId),
           cofferApi.operationsMetrics(organizationId),
           cofferApi.auditEvents(organizationId, filter || undefined),
+          cofferApi.financeAgentRuns(organizationId),
         ]),
       );
     } catch (cause) {
@@ -93,6 +98,7 @@ export function AuthenticatedOperations() {
       cofferApi.operationsDashboard(organizationId),
       cofferApi.operationsMetrics(organizationId),
       cofferApi.auditEvents(organizationId),
+      cofferApi.financeAgentRuns(organizationId),
     ])
       .then((result) => active && apply(result))
       .catch((cause) => active && setError(message(cause)))
@@ -216,6 +222,99 @@ export function AuthenticatedOperations() {
               : "Checking chain"}
           </small>
         </article>
+      </section>
+
+      <section
+        className="panel finance-agent-history"
+        aria-label="Finance Agent run timeline"
+      >
+        <div className="finance-agent-heading">
+          <div>
+            <span className="eyebrow">EVIDENCE-BOUND AUTONOMY</span>
+            <h2>Finance Agent runs</h2>
+            <p>
+              Verified business events may advance bounded work. External
+              authority remains behind human approval, and the API never signs.
+            </p>
+          </div>
+          <strong>{financeRuns.length}</strong>
+        </div>
+        <div className="finance-agent-runs">
+          {financeRuns.map((run) => (
+            <article key={run.id} className="finance-agent-run">
+              <header>
+                <div>
+                  <Status value={run.state} />
+                  <h3>{run.objective.replaceAll("_", " ")}</h3>
+                  <small>
+                    Correlation {short(run.correlationId)} · Run {short(run.id)}
+                  </small>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Policy</dt>
+                    <dd>
+                      {run.policy.outcome ?? "Pending"} · v
+                      {run.policy.version ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Reserved</dt>
+                    <dd>
+                      {run.reservation
+                        ? `${run.reservation.amountAtomic} ${run.reservation.assetId}`
+                        : "Not reserved"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Authorization</dt>
+                    <dd>{run.approvalBoundary.proposalStatus}</dd>
+                  </div>
+                  <div>
+                    <dt>Reconciliation</dt>
+                    <dd>{run.reconciliation.paymentStatus}</dd>
+                  </div>
+                </dl>
+              </header>
+              <ol className="finance-agent-steps">
+                {run.steps.map((step) => (
+                  <li
+                    key={step.code}
+                    className={`is-${step.status.toLowerCase()}`}
+                  >
+                    <span aria-hidden="true" />
+                    <div>
+                      <small>{step.code.replaceAll("_", " ")}</small>
+                      <strong>{step.title}</strong>
+                      <p>{step.detail.replaceAll("_", " ")}</p>
+                      {step.occurredAt && (
+                        <time dateTime={step.occurredAt}>
+                          {new Date(step.occurredAt).toLocaleString()}
+                        </time>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <footer>
+                <span>
+                  Backend signing: <strong>disabled</strong>
+                </span>
+                <span>
+                  Execution: <strong>seeded fulfilment only</strong>
+                </span>
+                <code title={run.policy.instructionDigest ?? undefined}>
+                  Digest {short(run.policy.instructionDigest)}
+                </code>
+              </footer>
+            </article>
+          ))}
+          {!loading && financeRuns.length === 0 && (
+            <p className="api-empty">
+              No verified settlement has started a Finance Agent run yet.
+            </p>
+          )}
+        </div>
       </section>
 
       <div className="operations-board">

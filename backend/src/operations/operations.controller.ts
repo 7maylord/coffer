@@ -217,6 +217,77 @@ const recheckSchema: SchemaObject = {
     createdAt: { type: 'string', format: 'date-time' },
   },
 };
+const financeAgentRunsSchema: SchemaObject = {
+  type: 'array',
+  items: {
+    type: 'object',
+    required: [
+      'id',
+      'state',
+      'triggerType',
+      'objective',
+      'correlationId',
+      'evidence',
+      'inference',
+      'policy',
+      'reservation',
+      'approvalBoundary',
+      'procurement',
+      'reconciliation',
+      'steps',
+      'createdAt',
+      'updatedAt',
+    ],
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      state: { type: 'string' },
+      triggerType: { type: 'string' },
+      objective: { type: 'string' },
+      correlationId: { type: 'string' },
+      evidence: { type: 'object', additionalProperties: true },
+      inference: { type: 'object', additionalProperties: true },
+      policy: { type: 'object', additionalProperties: true },
+      reservation: {
+        oneOf: [
+          { type: 'object', additionalProperties: true },
+          { type: 'null' },
+        ],
+      },
+      approvalBoundary: { type: 'object', additionalProperties: true },
+      procurement: {
+        oneOf: [
+          { type: 'object', additionalProperties: true },
+          { type: 'null' },
+        ],
+      },
+      reconciliation: { type: 'object', additionalProperties: true },
+      steps: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['code', 'status', 'title', 'detail', 'occurredAt'],
+          properties: {
+            code: { type: 'string' },
+            status: {
+              type: 'string',
+              enum: ['COMPLETE', 'PENDING', 'BLOCKED', 'FAILED'],
+            },
+            title: { type: 'string' },
+            detail: { type: 'string' },
+            occurredAt: {
+              oneOf: [
+                { type: 'string', format: 'date-time' },
+                { type: 'null' },
+              ],
+            },
+          },
+        },
+      },
+      createdAt: { type: 'string', format: 'date-time' },
+      updatedAt: { type: 'string', format: 'date-time' },
+    },
+  },
+};
 
 @ApiTags('operations')
 @ApiCookieAuth('coffer_session')
@@ -274,6 +345,22 @@ export class OperationsController {
   @ApiResponse({ status: 200, schema: metricsSchema })
   metrics(@Param('orgId') organizationId: string) {
     return this.operations.metrics(organizationId);
+  }
+
+  @Get('operations/finance-agent-runs')
+  @RequireOrganizationPermission('operations:read')
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiOperation({
+    summary: 'Read the evidence-bound Finance Agent run timeline',
+  })
+  @ApiResponse({ status: 200, schema: financeAgentRunsSchema })
+  financeAgentRuns(
+    @Param('orgId') organizationId: string,
+    @Query('limit') rawLimit?: string,
+  ) {
+    return this.execute(() =>
+      this.operations.financeAgentRuns(organizationId, limit.parse(rawLimit)),
+    );
   }
 
   @Post('operations/reconciliation/:caseId/recheck')

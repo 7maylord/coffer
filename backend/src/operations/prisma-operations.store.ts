@@ -3,6 +3,7 @@ import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.js';
 import { OperationsError, type AuditEventView } from './operations.types.js';
+import type { FinanceAgentTimelineStep } from './operations.types.js';
 
 const pendingStatuses = [
   PaymentStatus.CREATED,
@@ -192,6 +193,62 @@ export class PrismaOperationsStore implements OnModuleDestroy {
     };
   }
 
+  async financeAgentRuns(organizationId: string, limit: number) {
+    const runs = await this.prisma.financeAgentRun.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        settlementPosting: {
+          select: {
+            id: true,
+            assetId: true,
+            amountAtomic: true,
+            journalId: true,
+            completedAt: true,
+          },
+        },
+        paymentAttempt: {
+          select: {
+            id: true,
+            provider: true,
+            status: true,
+            updatedAt: true,
+            reconciliationCase: {
+              select: { reasonCode: true, status: true },
+            },
+          },
+        },
+        reservation: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            expiresAt: true,
+          },
+        },
+        procurementPurchase: {
+          select: {
+            id: true,
+            status: true,
+            updatedAt: true,
+            completedAt: true,
+            financialProposal: {
+              select: {
+                id: true,
+                status: true,
+                approvalThreshold: true,
+                createdAt: true,
+                approvals: { select: { id: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    return runs.map(mapFinanceAgentRun);
+  }
+
   async recheck(input: {
     organizationId: string;
     caseId: string;
@@ -354,6 +411,261 @@ export class PrismaOperationsStore implements OnModuleDestroy {
       algorithm: 'SHA-256',
     };
   }
+}
+
+function mapFinanceAgentRun(
+  run: Prisma.FinanceAgentRunGetPayload<{
+    include: {
+      settlementPosting: {
+        select: {
+          id: true;
+          assetId: true;
+          amountAtomic: true;
+          journalId: true;
+          completedAt: true;
+        };
+      };
+      paymentAttempt: {
+        select: {
+          id: true;
+          provider: true;
+          status: true;
+          updatedAt: true;
+          reconciliationCase: {
+            select: { reasonCode: true; status: true };
+          };
+        };
+      };
+      reservation: {
+        select: {
+          id: true;
+          status: true;
+          createdAt: true;
+          expiresAt: true;
+        };
+      };
+      procurementPurchase: {
+        select: {
+          id: true;
+          status: true;
+          updatedAt: true;
+          completedAt: true;
+          financialProposal: {
+            select: {
+              id: true;
+              status: true;
+              approvalThreshold: true;
+              createdAt: true;
+              approvals: { select: { id: true } };
+            };
+          };
+        };
+      };
+    };
+  }>,
+) {
+  const proposal = run.procurementPurchase?.financialProposal ?? null;
+  const value = {
+    id: run.id,
+    state: run.state,
+    triggerType: run.triggerType,
+    objective: run.objective,
+    correlationId: run.correlationId,
+    evidence: {
+      invoiceId: run.invoiceId,
+      paymentAttemptId: run.paymentAttemptId,
+      settlementPostingId: run.settlementPostingId,
+      journalId: run.settlementPosting.journalId,
+    },
+    inference: {
+      status: run.inferenceStatus,
+      provider: run.inferenceProvider,
+      model: run.inferenceModel,
+      attestationStatus: run.attestationStatus,
+      inputDigest: run.inputDigest,
+      responseDigest: run.responseDigest,
+      errorCode: run.errorCode,
+    },
+    policy: {
+      outcome: run.policyOutcome,
+      reasonCodes: stringArray(run.policyReasonCodes),
+      digest: run.policyDigest,
+      version: run.policyVersion,
+      instructionDigest: run.instructionDigest,
+    },
+    reservation: run.reservation
+      ? {
+          id: run.reservation.id,
+          status: run.reservation.status,
+          assetId: run.actionAssetId,
+          amountAtomic: run.actionAmountAtomic?.toFixed(0) ?? null,
+          expiresAt: run.reservation.expiresAt?.toISOString() ?? null,
+        }
+      : null,
+    approvalBoundary: {
+      backendSigning: false,
+      mode: 'HUMAN_APPROVAL_REQUIRED' as const,
+      transferExecution: 'SEEDED_FULFILMENT_ONLY' as const,
+      proposalId: proposal?.id ?? null,
+      proposalStatus: proposal?.status ?? 'NOT_REQUESTED',
+      approvalCount: proposal?.approvals.length ?? 0,
+      approvalThreshold: proposal?.approvalThreshold ?? null,
+    },
+    procurement: run.procurementPurchase
+      ? {
+          agentId: run.procurementAgentId,
+          offerId: run.procurementOfferId,
+          purchaseId: run.procurementPurchase.id,
+          status: run.procurementPurchase.status,
+          providerMode: 'SEEDED_PROTOTYPE' as const,
+          liveSettlement: false,
+        }
+      : null,
+    reconciliation: {
+      paymentStatus: run.paymentAttempt.status,
+      provider: run.paymentAttempt.provider,
+      settlementCompletedAt:
+        run.settlementPosting.completedAt?.toISOString() ?? null,
+      caseStatus: run.paymentAttempt.reconciliationCase?.status ?? null,
+      reasonCode: run.paymentAttempt.reconciliationCase?.reasonCode ?? null,
+    },
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+  };
+  return { ...value, steps: financeAgentSteps(run, value) };
+}
+
+function financeAgentSteps(
+  run: Parameters<typeof mapFinanceAgentRun>[0],
+  value: {
+    inference: { status: string; errorCode: string | null };
+    policy: { outcome: string | null; reasonCodes: string[] };
+    reservation: { status: string } | null;
+    procurement: { status: string } | null;
+    approvalBoundary: { proposalStatus: string };
+    reconciliation: {
+      paymentStatus: string;
+      settlementCompletedAt: string | null;
+    };
+  },
+): FinanceAgentTimelineStep[] {
+  const inferenceStatus =
+    value.inference.status === 'VERIFIED'
+      ? 'COMPLETE'
+      : value.inference.status === 'FAILED'
+        ? 'FAILED'
+        : 'PENDING';
+  const policyStatus =
+    value.policy.outcome === 'ALLOW'
+      ? 'COMPLETE'
+      : value.policy.outcome === 'DENY'
+        ? 'FAILED'
+        : value.policy.outcome === 'REQUIRES_APPROVAL'
+          ? 'BLOCKED'
+          : 'PENDING';
+  const approvalStatus = value.procurement
+    ? value.procurement.status === 'COMPLETED'
+      ? 'COMPLETE'
+      : value.approvalBoundary.proposalStatus === 'APPROVED'
+        ? 'COMPLETE'
+        : ['DENIED', 'FAILED'].includes(value.procurement.status)
+          ? 'FAILED'
+          : 'BLOCKED'
+    : run.state === 'PROCUREMENT_CONFIGURATION_REQUIRED' ||
+        run.state === 'PROCUREMENT_FAILED'
+      ? 'FAILED'
+      : 'PENDING';
+  const reconciled =
+    value.reconciliation.paymentStatus === 'SETTLED' &&
+    value.reconciliation.settlementCompletedAt;
+  return [
+    {
+      code: 'TRIGGER',
+      status: 'COMPLETE',
+      title: 'Verified invoice settlement triggered the run',
+      detail: run.triggerType,
+      occurredAt: run.createdAt.toISOString(),
+    },
+    {
+      code: 'EVIDENCE',
+      status:
+        run.settlementPosting.completedAt && run.settlementPosting.journalId
+          ? 'COMPLETE'
+          : 'PENDING',
+      title: 'Settlement evidence and ledger posting',
+      detail: run.settlementPosting.journalId
+        ? 'Balanced journal evidence linked'
+        : 'Ledger evidence pending',
+      occurredAt: run.settlementPosting.completedAt?.toISOString() ?? null,
+    },
+    {
+      code: 'INFERENCE',
+      status: inferenceStatus,
+      title: 'Private inference verification',
+      detail:
+        value.inference.errorCode ??
+        (value.inference.status === 'VERIFIED'
+          ? run.attestationStatus
+          : 'Inference pending'),
+      occurredAt: run.decidedAt?.toISOString() ?? null,
+    },
+    {
+      code: 'POLICY',
+      status: policyStatus,
+      title: 'Deterministic policy decision',
+      detail:
+        value.policy.reasonCodes.join(', ') ||
+        value.policy.outcome ||
+        'Policy evaluation pending',
+      occurredAt: run.policyEvaluatedAt?.toISOString() ?? null,
+    },
+    {
+      code: 'RESERVATION',
+      status: value.reservation
+        ? value.reservation.status === 'ACTIVE'
+          ? 'COMPLETE'
+          : 'BLOCKED'
+        : run.state === 'RESERVATION_FAILED'
+          ? 'FAILED'
+          : 'PENDING',
+      title: 'Internal ledger reservation',
+      detail: value.reservation?.status ?? run.actionErrorCode ?? 'Not created',
+      occurredAt: run.reservation?.createdAt.toISOString() ?? null,
+    },
+    {
+      code: 'APPROVAL_BOUNDARY',
+      status: approvalStatus,
+      title: 'Human authorization boundary',
+      detail: value.procurement
+        ? `${value.approvalBoundary.proposalStatus}; seeded fulfilment only`
+        : (run.actionErrorCode ?? 'No external action requested'),
+      occurredAt:
+        run.procurementPurchase?.financialProposal?.createdAt.toISOString() ??
+        null,
+    },
+    {
+      code: 'RECONCILIATION',
+      status: reconciled
+        ? 'COMPLETE'
+        : value.reconciliation.paymentStatus ===
+            'UNKNOWN_REQUIRES_RECONCILIATION'
+          ? 'BLOCKED'
+          : 'PENDING',
+      title: 'Independent settlement reconciliation',
+      detail: value.reconciliation.paymentStatus,
+      occurredAt: reconciled
+        ? value.reconciliation.settlementCompletedAt
+        : run.paymentAttempt.updatedAt.toISOString(),
+    },
+  ];
+}
+
+function stringArray(value: Prisma.JsonValue | null): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string')
+        .slice(0, 20)
+    : [];
 }
 
 function mapAuditEvent(value: {

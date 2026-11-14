@@ -32,12 +32,13 @@ function service() {
     audit: vi.fn().mockResolvedValue({ events: [] }),
     dashboard: vi.fn().mockResolvedValue({ queued: [] }),
     metrics: vi.fn().mockResolvedValue({ queuedOutboxEvents: 0 }),
+    financeAgentRuns: vi.fn().mockResolvedValue([]),
     recheck: vi.fn().mockResolvedValue({ status: 'QUEUED' }),
   };
 }
 
 describe('OperationsController', () => {
-  it('validates and delegates audit, dashboard, metrics, and recheck routes', async () => {
+  it('validates and delegates audit, dashboard, Finance Agent timeline, metrics, and recheck routes', async () => {
     const operations = service();
     const controller = new OperationsController(
       operations as unknown as PrismaOperationsStore,
@@ -49,6 +50,7 @@ describe('OperationsController', () => {
       'PAYMENT_STATUS_CHANGED',
     );
     await controller.dashboard(organizationId, '10');
+    await controller.financeAgentRuns(organizationId, '10');
     await controller.metrics(organizationId);
     await controller.recheck(request(), organizationId, caseId, 'recheck-1');
     expect(operations.audit).toHaveBeenCalledWith(organizationId, {
@@ -57,6 +59,10 @@ describe('OperationsController', () => {
       eventType: 'PAYMENT_STATUS_CHANGED',
     });
     expect(operations.dashboard).toHaveBeenCalledWith(organizationId, 10);
+    expect(operations.financeAgentRuns).toHaveBeenCalledWith(
+      organizationId,
+      10,
+    );
     expect(operations.recheck).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId,

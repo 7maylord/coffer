@@ -167,6 +167,10 @@ describe('B-10 audit and operator API (e2e)', () => {
       .set('Cookie', cookie)
       .expect(200);
     await request(app.getHttpServer())
+      .get(`/v1/orgs/${organizationId}/operations/finance-agent-runs`)
+      .set('Cookie', cookie)
+      .expect(200, []);
+    await request(app.getHttpServer())
       .post(
         `/v1/orgs/${organizationId}/operations/reconciliation/${caseId}/recheck`,
       )

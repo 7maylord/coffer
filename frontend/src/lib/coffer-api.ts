@@ -968,7 +968,7 @@ const payrollPayoutRunSchema = z
         .object({
           id: z.uuid(),
           payrollLineId: z.uuid(),
-          status: z.enum(["PREPARED", "VERIFIED"]),
+          status: z.enum(["PREPARED", "RECONCILING", "VERIFIED"]),
           transactionHash: z.string().nullable(),
           evidenceDigest: z
             .string()
@@ -1034,6 +1034,104 @@ const operationsMetricsSchema = z
     oldestQueuedAt: z.iso.datetime().nullable(),
   })
   .strict();
+const financeAgentTimelineStepSchema = z
+  .object({
+    code: z.enum([
+      "TRIGGER",
+      "EVIDENCE",
+      "INFERENCE",
+      "POLICY",
+      "RESERVATION",
+      "APPROVAL_BOUNDARY",
+      "RECONCILIATION",
+    ]),
+    status: z.enum(["COMPLETE", "PENDING", "BLOCKED", "FAILED"]),
+    title: z.string(),
+    detail: z.string(),
+    occurredAt: z.iso.datetime().nullable(),
+  })
+  .strict();
+const financeAgentRunSchema = z
+  .object({
+    id: z.uuid(),
+    state: z.string(),
+    triggerType: z.string(),
+    objective: z.string(),
+    correlationId: z.string(),
+    evidence: z
+      .object({
+        invoiceId: z.uuid(),
+        paymentAttemptId: z.uuid(),
+        settlementPostingId: z.uuid(),
+        journalId: z.uuid().nullable(),
+      })
+      .strict(),
+    inference: z
+      .object({
+        status: z.string(),
+        provider: z.string().nullable(),
+        model: z.string().nullable(),
+        attestationStatus: z.string(),
+        inputDigest: z.string().nullable(),
+        responseDigest: z.string().nullable(),
+        errorCode: z.string().nullable(),
+      })
+      .strict(),
+    policy: z
+      .object({
+        outcome: z.string().nullable(),
+        reasonCodes: z.array(z.string()),
+        digest: z.string().nullable(),
+        version: z.number().int().nullable(),
+        instructionDigest: z.string().nullable(),
+      })
+      .strict(),
+    reservation: z
+      .object({
+        id: z.uuid(),
+        status: z.string(),
+        assetId: z.string().nullable(),
+        amountAtomic: z.string().nullable(),
+        expiresAt: z.iso.datetime().nullable(),
+      })
+      .strict()
+      .nullable(),
+    approvalBoundary: z
+      .object({
+        backendSigning: z.literal(false),
+        mode: z.literal("HUMAN_APPROVAL_REQUIRED"),
+        transferExecution: z.literal("SEEDED_FULFILMENT_ONLY"),
+        proposalId: z.uuid().nullable(),
+        proposalStatus: z.string(),
+        approvalCount: z.number().int().nonnegative(),
+        approvalThreshold: z.number().int().positive().nullable(),
+      })
+      .strict(),
+    procurement: z
+      .object({
+        agentId: z.uuid().nullable(),
+        offerId: z.uuid().nullable(),
+        purchaseId: z.uuid(),
+        status: z.string(),
+        providerMode: z.literal("SEEDED_PROTOTYPE"),
+        liveSettlement: z.literal(false),
+      })
+      .strict()
+      .nullable(),
+    reconciliation: z
+      .object({
+        paymentStatus: z.string(),
+        provider: z.string(),
+        settlementCompletedAt: z.iso.datetime().nullable(),
+        caseStatus: z.string().nullable(),
+        reasonCode: z.string().nullable(),
+      })
+      .strict(),
+    steps: z.array(financeAgentTimelineStepSchema).length(7),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .strict();
 const auditPageSchema = z
   .object({
     events: z.array(
@@ -1088,6 +1186,7 @@ export type PayrollPayoutTransaction = z.infer<
 export type PayrollPayoutRun = z.infer<typeof payrollPayoutRunSchema>;
 export type OperationsDashboard = z.infer<typeof operationsDashboardSchema>;
 export type OperationsMetrics = z.infer<typeof operationsMetricsSchema>;
+export type FinanceAgentRun = z.infer<typeof financeAgentRunSchema>;
 export type AuditPage = z.infer<typeof auditPageSchema>;
 export type PolicyContractDeployment = z.infer<
   typeof policyContractDeploymentSchema
@@ -1674,6 +1773,11 @@ export const cofferApi = {
     request(
       `/v1/orgs/${encodeURIComponent(organizationId)}/operations/metrics`,
       operationsMetricsSchema,
+    ),
+  financeAgentRuns: (organizationId: string) =>
+    request(
+      `/v1/orgs/${encodeURIComponent(organizationId)}/operations/finance-agent-runs?limit=10`,
+      z.array(financeAgentRunSchema),
     ),
   auditEvents: (
     organizationId: string,

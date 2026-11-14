@@ -10703,6 +10703,7 @@
                             "type": "string",
                             "enum": [
                               "PREPARED",
+                              "RECONCILING",
                               "VERIFIED"
                             ]
                           },
@@ -10878,6 +10879,7 @@
                             "type": "string",
                             "enum": [
                               "PREPARED",
+                              "RECONCILING",
                               "VERIFIED"
                             ]
                           },
@@ -11796,6 +11798,174 @@
           }
         ],
         "summary": "Read aggregate settlement operations metrics",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/v1/orgs/{orgId}/operations/finance-agent-runs": {
+      "get": {
+        "operationId": "Operations.financeAgentRuns",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "state",
+                      "triggerType",
+                      "objective",
+                      "correlationId",
+                      "evidence",
+                      "inference",
+                      "policy",
+                      "reservation",
+                      "approvalBoundary",
+                      "procurement",
+                      "reconciliation",
+                      "steps",
+                      "createdAt",
+                      "updatedAt"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "state": {
+                        "type": "string"
+                      },
+                      "triggerType": {
+                        "type": "string"
+                      },
+                      "objective": {
+                        "type": "string"
+                      },
+                      "correlationId": {
+                        "type": "string"
+                      },
+                      "evidence": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "inference": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "policy": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "reservation": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "approvalBoundary": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "procurement": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": true
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reconciliation": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "steps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "code",
+                            "status",
+                            "title",
+                            "detail",
+                            "occurredAt"
+                          ],
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "COMPLETE",
+                                "PENDING",
+                                "BLOCKED",
+                                "FAILED"
+                              ]
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "detail": {
+                              "type": "string"
+                            },
+                            "occurredAt": {
+                              "oneOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "coffer_session": []
+          }
+        ],
+        "summary": "Read the evidence-bound Finance Agent run timeline",
         "tags": [
           "operations"
         ]

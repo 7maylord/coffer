@@ -13,6 +13,21 @@ export type AuditEventView = {
   createdAt: string;
 };
 
+export type FinanceAgentTimelineStep = {
+  code:
+    | 'TRIGGER'
+    | 'EVIDENCE'
+    | 'INFERENCE'
+    | 'POLICY'
+    | 'RESERVATION'
+    | 'APPROVAL_BOUNDARY'
+    | 'RECONCILIATION';
+  status: 'COMPLETE' | 'PENDING' | 'BLOCKED' | 'FAILED';
+  title: string;
+  detail: string;
+  occurredAt: string | null;
+};
+
 export class OperationsError extends Error {
   constructor(
     readonly code:

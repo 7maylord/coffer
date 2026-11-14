@@ -55,6 +55,7 @@ describe('generated OpenAPI', () => {
       '/v1/orgs/{orgId}/invoices/{invoiceId}/void',
       '/v1/orgs/{orgId}/members',
       '/v1/orgs/{orgId}/members/{userId}',
+      '/v1/orgs/{orgId}/operations/finance-agent-runs',
       '/v1/orgs/{orgId}/operations/metrics',
       '/v1/orgs/{orgId}/operations/reconciliation/{caseId}/recheck',
       '/v1/orgs/{orgId}/operations/settlements',

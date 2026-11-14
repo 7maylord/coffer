@@ -5695,6 +5695,165 @@ html[data-motion="reduced"] .flow-dot {
 .operations-metrics .failed {
   background: #f5e5e0;
 }
+.finance-agent-history {
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+.finance-agent-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  padding: 25px;
+  border-bottom: 1px solid var(--line);
+}
+.finance-agent-heading h2 {
+  margin: 7px 0;
+  font-family: var(--serif);
+  font-size: 28px;
+}
+.finance-agent-heading p {
+  max-width: 660px;
+  color: var(--muted);
+  font-size: 9px;
+}
+.finance-agent-heading > strong {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 400;
+}
+.finance-agent-runs {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+}
+.finance-agent-run {
+  background: var(--white);
+}
+.finance-agent-run > header {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) 1.2fr;
+  gap: 25px;
+  padding: 22px 25px;
+  border-bottom: 1px solid var(--line);
+}
+.finance-agent-run h3 {
+  margin: 10px 0 7px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  text-transform: lowercase;
+}
+.finance-agent-run header small,
+.finance-agent-run dt,
+.finance-agent-run dd {
+  color: var(--muted);
+  font-size: 8px;
+}
+.finance-agent-run dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  border: 1px solid var(--line);
+}
+.finance-agent-run dl > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.finance-agent-run dl > div:nth-child(2n) {
+  border-right: 0;
+}
+.finance-agent-run dl > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.finance-agent-run dt {
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.finance-agent-run dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finance-agent-steps {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+  padding: 0;
+  margin: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+.finance-agent-steps li {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 9px;
+  min-height: 150px;
+  padding: 18px 13px;
+  border-right: 1px solid var(--line);
+}
+.finance-agent-steps li:last-child {
+  border-right: 0;
+}
+.finance-agent-steps li > span {
+  width: 9px;
+  height: 9px;
+  margin-top: 2px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+}
+.finance-agent-steps .is-complete > span {
+  border-color: #708364;
+  background: #a9bc9d;
+}
+.finance-agent-steps .is-blocked > span {
+  border-color: #9a713e;
+  background: #edc384;
+}
+.finance-agent-steps .is-failed > span {
+  border-color: #9d594a;
+  background: #d98976;
+}
+.finance-agent-steps li > div {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+.finance-agent-steps small,
+.finance-agent-steps time {
+  color: var(--muted);
+  font-size: 7px;
+  letter-spacing: 0.7px;
+}
+.finance-agent-steps strong {
+  font-size: 9px;
+  line-height: 1.35;
+}
+.finance-agent-steps p {
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+.finance-agent-run > footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 13px 25px;
+  border-top: 1px solid var(--line);
+  background: #f8f6ef;
+  color: var(--muted);
+  font-size: 8px;
+}
+.finance-agent-run > footer code {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 8px;
+}
 .payroll-review {
   display: grid;
   gap: 18px;
@@ -5997,6 +6156,7 @@ html[data-motion="reduced"] .flow-dot {
     border-right: 0;
   }
   .audit-heading,
+  .finance-agent-heading,
   .audit-heading form {
     align-items: stretch;
     flex-direction: column;
@@ -6007,6 +6167,23 @@ html[data-motion="reduced"] .flow-dot {
   .audit-events time,
   .audit-events code {
     grid-column: 2;
+  }
+  .finance-agent-run > header,
+  .finance-agent-run dl {
+    grid-template-columns: 1fr;
+  }
+  .finance-agent-run dl > div,
+  .finance-agent-run dl > div:nth-child(2n),
+  .finance-agent-run dl > div:nth-last-child(-n + 2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .finance-agent-run dl > div:last-child {
+    border-bottom: 0;
+  }
+  .finance-agent-run > footer code {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

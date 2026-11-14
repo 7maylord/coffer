@@ -11,6 +11,14 @@ const actionId = "88888888-8888-4888-8888-888888888888";
 const pendingId = "99999999-9999-4999-8999-999999999999";
 const refundedId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const settledId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const financeRunId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const postingId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const journalId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const reservationId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const agentId = "12121212-1212-4212-8212-121212121212";
+const offerId = "13131313-1313-4313-8313-131313131313";
+const purchaseId = "14141414-1414-4414-8414-141414141414";
+const proposalId = "15151515-1515-4515-8515-151515151515";
 const digest = "a".repeat(64);
 
 async function authenticated(page: Page, role: string) {
@@ -137,6 +145,121 @@ async function operationsRoutes(page: Page) {
           stalePendingPayments: 0,
           oldestQueuedAt: null,
         },
+      }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/operations/finance-agent-runs?**`,
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            id: financeRunId,
+            state: "PROCUREMENT_AWAITING_APPROVAL",
+            triggerType: "INVOICE_SETTLED",
+            objective: "ALLOCATE_VERIFIED_INVOICE_REVENUE",
+            correlationId: "finance-agent-correlation-1",
+            evidence: {
+              invoiceId: batchId,
+              paymentAttemptId: paymentId,
+              settlementPostingId: postingId,
+              journalId,
+            },
+            inference: {
+              status: "VERIFIED",
+              provider: "near-ai-cloud",
+              model: "near-ai/verified-model",
+              attestationStatus: "VERIFIED_PROVIDER_TEE",
+              inputDigest: digest,
+              responseDigest: "b".repeat(64),
+              errorCode: null,
+            },
+            policy: {
+              outcome: "ALLOW",
+              reasonCodes: [],
+              digest: "c".repeat(64),
+              version: 1,
+              instructionDigest: "d".repeat(64),
+            },
+            reservation: {
+              id: reservationId,
+              status: "ACTIVE",
+              assetId: "mock:near:usdc",
+              amountAtomic: "250",
+              expiresAt: "2026-11-21T12:00:00.000Z",
+            },
+            approvalBoundary: {
+              backendSigning: false,
+              mode: "HUMAN_APPROVAL_REQUIRED",
+              transferExecution: "SEEDED_FULFILMENT_ONLY",
+              proposalId,
+              proposalStatus: "PENDING",
+              approvalCount: 0,
+              approvalThreshold: 2,
+            },
+            procurement: {
+              agentId,
+              offerId,
+              purchaseId,
+              status: "AWAITING_APPROVAL",
+              providerMode: "SEEDED_PROTOTYPE",
+              liveSettlement: false,
+            },
+            reconciliation: {
+              paymentStatus: "SETTLED",
+              provider: "direct-near-testnet",
+              settlementCompletedAt: "2026-11-14T12:00:00.000Z",
+              caseStatus: null,
+              reasonCode: null,
+            },
+            steps: [
+              [
+                "TRIGGER",
+                "COMPLETE",
+                "Verified invoice settlement triggered the run",
+                "INVOICE_SETTLED",
+              ],
+              [
+                "EVIDENCE",
+                "COMPLETE",
+                "Settlement evidence and ledger posting",
+                "Balanced journal evidence linked",
+              ],
+              [
+                "INFERENCE",
+                "COMPLETE",
+                "Private inference verification",
+                "VERIFIED_PROVIDER_TEE",
+              ],
+              ["POLICY", "COMPLETE", "Deterministic policy decision", "ALLOW"],
+              [
+                "RESERVATION",
+                "COMPLETE",
+                "Internal ledger reservation",
+                "ACTIVE",
+              ],
+              [
+                "APPROVAL_BOUNDARY",
+                "BLOCKED",
+                "Human authorization boundary",
+                "PENDING; seeded fulfilment only",
+              ],
+              [
+                "RECONCILIATION",
+                "COMPLETE",
+                "Independent settlement reconciliation",
+                "SETTLED",
+              ],
+            ].map(([code, status, title, detail], index) => ({
+              code,
+              status,
+              title,
+              detail,
+              occurredAt: `2026-11-14T12:0${index}:00.000Z`,
+            })),
+            createdAt: "2026-11-14T12:00:00.000Z",
+            updatedAt: "2026-11-14T12:06:00.000Z",
+          },
+        ],
       }),
   );
   await page.route(`**/api/coffer/v1/orgs/${orgId}/audit?**`, (route) =>
@@ -406,6 +529,83 @@ test("finance prepares an approved payroll for verified wallet signing", async (
   ).toBeVisible();
 });
 
+test("finance rechecks uncertain payout evidence without requesting another signature", async ({
+  page,
+}) => {
+  await authenticated(page, "FINANCE_ADMIN");
+  const approved = {
+    ...summary("APPROVED"),
+    status: "PROCESSING",
+    assetId: "near:testnet:native",
+  };
+  const reconciling = {
+    id: paymentId,
+    batchId,
+    status: "PROCESSING",
+    signerAccountId: "owner.testnet",
+    approvedManifestDigest: digest,
+    settledAt: null,
+    items: [
+      {
+        id: actionId,
+        payrollLineId: lineId,
+        status: "RECONCILING",
+        transactionHash: "1".repeat(43),
+        evidenceDigest: null,
+        verifiedAt: null,
+        transaction: null,
+      },
+    ],
+  };
+  await page.route(`**/api/coffer/v1/orgs/${orgId}/payroll/batches`, (route) =>
+    route.fulfill({ json: [approved] }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}`,
+    (route) => route.fulfill({ json: { ...batch(), ...approved } }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}/payouts`,
+    (route) => route.fulfill({ json: reconciling }),
+  );
+  await page.route(
+    `**/api/coffer/v1/orgs/${orgId}/payroll/batches/${batchId}/payouts/items/${actionId}/reconcile`,
+    async (route) => {
+      expect(route.request().postDataJSON()).toEqual({
+        transactionHash: "1".repeat(43),
+      });
+      await route.fulfill({
+        json: {
+          ...reconciling,
+          status: "SETTLED",
+          settledAt: "2026-11-14T00:00:00.000Z",
+          items: [
+            {
+              ...reconciling.items[0],
+              status: "VERIFIED",
+              evidenceDigest: "e".repeat(64),
+              verifiedAt: "2026-11-14T00:00:00.000Z",
+            },
+          ],
+        },
+      });
+    },
+  );
+
+  await page.goto("/payroll");
+  await page.getByRole("button", { name: "Prepare wallet payouts" }).click();
+  await expect(
+    page.getByRole("button", { name: "Recheck transfer" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Sign and verify payout" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Recheck transfer" }).click();
+  await expect(
+    page.getByRole("region", { name: "Payroll payout verification" }),
+  ).toContainText("VERIFIED");
+});
+
 test("finance queues a reconciliation recheck without changing unknown status", async ({
   page,
 }) => {
@@ -431,6 +631,13 @@ test("finance queues a reconciliation recheck without changing unknown status", 
 
   await page.goto("/activity");
   await expect(page.getByText("Audit integrity")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Finance Agent run timeline" }),
+  ).toContainText("Finance Agent runs");
+  await expect(page.getByText("Backend signing: disabled")).toBeVisible();
+  await expect(
+    page.getByText("seeded fulfilment only", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Verified", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Queue safe recheck" }).click();
   await expect(
@@ -439,7 +646,28 @@ test("finance queues a reconciliation recheck without changing unknown status", 
   await expect(page.getByText("UNKNOWN REQUIRES RECONCILIATION")).toBeVisible();
   await expect(page.getByText("PROCESSING", { exact: true })).toBeVisible();
   await expect(page.getByText("REFUNDED", { exact: true })).toBeVisible();
-  await expect(page.getByText("SETTLED", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".operations-board .api-status").filter({ hasText: "SETTLED" }),
+  ).toBeVisible();
+});
+
+test("Finance Agent evidence timeline remains usable on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await authenticated(page, "AUDITOR");
+  await operationsRoutes(page);
+  await page.goto("/activity");
+  const timeline = page.getByRole("region", {
+    name: "Finance Agent run timeline",
+  });
+  await expect(timeline).toBeVisible();
+  await expect(
+    timeline.getByText("Human authorization boundary"),
+  ).toBeVisible();
+  await expect(
+    timeline.getByText("Independent settlement reconciliation"),
+  ).toBeVisible();
 });
 
 test("auditor can verify the timeline but cannot queue reconciliation", async ({

@@ -1232,6 +1232,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/orgs/{orgId}/operations/finance-agent-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the evidence-bound Finance Agent run timeline */
+    get: operations["Operations.financeAgentRuns"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/orgs/{orgId}/operations/reconciliation/{caseId}/recheck": {
     parameters: {
       query?: never;
@@ -5459,7 +5476,7 @@ export interface operations {
               /** Format: uuid */
               payrollLineId: string;
               /** @enum {string} */
-              status: "PREPARED" | "VERIFIED";
+              status: "PREPARED" | "RECONCILING" | "VERIFIED";
               transactionHash: string | null;
               evidenceDigest: string | null;
               verifiedAt: string | null;
@@ -5508,7 +5525,7 @@ export interface operations {
               /** Format: uuid */
               payrollLineId: string;
               /** @enum {string} */
-              status: "PREPARED" | "VERIFIED";
+              status: "PREPARED" | "RECONCILING" | "VERIFIED";
               transactionHash: string | null;
               evidenceDigest: string | null;
               verifiedAt: string | null;
@@ -5799,6 +5816,67 @@ export interface operations {
             stalePendingPayments: number;
             oldestQueuedAt: string | null;
           };
+        };
+      };
+    };
+  };
+  "Operations.financeAgentRuns": {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: uuid */
+            id: string;
+            state: string;
+            triggerType: string;
+            objective: string;
+            correlationId: string;
+            evidence: {
+              [key: string]: unknown;
+            };
+            inference: {
+              [key: string]: unknown;
+            };
+            policy: {
+              [key: string]: unknown;
+            };
+            reservation: {
+              [key: string]: unknown;
+            } | null;
+            approvalBoundary: {
+              [key: string]: unknown;
+            };
+            procurement: {
+              [key: string]: unknown;
+            } | null;
+            reconciliation: {
+              [key: string]: unknown;
+            };
+            steps: {
+              code: string;
+              /** @enum {string} */
+              status: "COMPLETE" | "PENDING" | "BLOCKED" | "FAILED";
+              title: string;
+              detail: string;
+              occurredAt: string | null;
+            }[];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+          }[];
         };
       };
     };
