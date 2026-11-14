@@ -41,6 +41,7 @@ const nearAccount = z
   .max(64)
   .regex(/^[a-z0-9]+(?:[._-][a-z0-9]+)*$/);
 const idempotencyKey = z.string().trim().min(8).max(128);
+const transactionHashSchema = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/);
 const privateOutputSchema = z
   .object({
     findings: z
@@ -438,6 +439,8 @@ export class PayrollService {
     transactionHash: string,
   ) {
     this.assertPayoutEnabled();
+    const normalizedTransactionHash =
+      transactionHashSchema.parse(transactionHash);
     const batch = await this.requireBatch(organizationId, batchId);
     const run = await this.store.payoutRun(organizationId, batchId);
     if (!run) {
@@ -463,7 +466,7 @@ export class PayrollService {
       );
     }
     if (item.status === 'VERIFIED') {
-      if (item.transactionHash !== transactionHash) {
+      if (item.transactionHash !== normalizedTransactionHash) {
         throw new PayrollError(
           'PAYROLL_PAYOUT_CONFLICT',
           'Payroll payout item already has different transaction evidence',
@@ -471,9 +474,22 @@ export class PayrollService {
       }
       return this.payoutView(run, plan);
     }
+    const claimed = await this.store.claimPayoutTransaction({
+      organizationId,
+      payoutRunId: run.id,
+      payoutItemId,
+      actorUserId,
+      transactionHash: normalizedTransactionHash,
+    });
+    if (!claimed) {
+      throw new PayrollError(
+        'PAYROLL_PAYOUT_CONFLICT',
+        'Payroll payout already has different transaction evidence',
+      );
+    }
     const evidence = await this.transfers.verifyAndClaim({
       ...planned.instruction,
-      transactionHash,
+      transactionHash: normalizedTransactionHash,
     });
     const updated = await this.store.verifyPayoutItem({
       organizationId,

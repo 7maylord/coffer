@@ -107,7 +107,7 @@ export type StoredPayrollPayoutItem = {
   organizationId: string;
   payoutRunId: string;
   payrollLineId: string;
-  status: 'PREPARED' | 'VERIFIED';
+  status: 'PREPARED' | 'RECONCILING' | 'VERIFIED';
   instructionDigest: string;
   transactionHash: string | null;
   evidenceDigest: string | null;
@@ -216,6 +216,13 @@ export interface PayrollStore {
     approvedBatchVersion: number;
     items: Array<{ payrollLineId: string; instructionDigest: string }>;
   }): Promise<StoredPayrollPayoutRun>;
+  claimPayoutTransaction(input: {
+    organizationId: string;
+    payoutRunId: string;
+    payoutItemId: string;
+    actorUserId: string;
+    transactionHash: string;
+  }): Promise<StoredPayrollPayoutRun | null>;
   verifyPayoutItem(input: {
     organizationId: string;
     payoutRunId: string;

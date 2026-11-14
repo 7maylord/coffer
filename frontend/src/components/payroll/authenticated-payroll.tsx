@@ -344,6 +344,39 @@ function FinancePayroll() {
       await load(selected.id);
     } catch (cause) {
       setError(message(cause));
+      try {
+        setPayout(
+          await cofferApi.preparePayrollPayout(
+            organizationId,
+            selected.id,
+            payout.signerAccountId,
+            `payroll:${selected.id}:v${selected.version}`,
+          ),
+        );
+      } catch {
+        // Keep the original signing or reconciliation error.
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const recheck = async (itemId: string, transactionHash: string) => {
+    if (!organizationId || !selected) return;
+    setBusy(true);
+    setError("");
+    try {
+      setPayout(
+        await cofferApi.reconcilePayrollPayout(
+          organizationId,
+          selected.id,
+          itemId,
+          transactionHash,
+        ),
+      );
+      await load(selected.id);
+    } catch (cause) {
+      setError(message(cause));
     } finally {
       setBusy(false);
     }
@@ -563,6 +596,18 @@ function FinancePayroll() {
                           Sign and verify payout
                         </button>
                       )}
+                      {item.status === "RECONCILING" &&
+                        item.transactionHash && (
+                          <button
+                            className="button"
+                            disabled={busy}
+                            onClick={() =>
+                              void recheck(item.id, item.transactionHash!)
+                            }
+                          >
+                            Recheck transfer
+                          </button>
+                        )}
                       {item.transactionHash && (
                         <small title={item.transactionHash}>
                           {short(item.transactionHash)}

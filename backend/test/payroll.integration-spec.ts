@@ -10,6 +10,7 @@ import type {
 } from '../src/payroll/payroll.types.js';
 import { AssetRegistry } from '../src/treasury/asset-registry.js';
 import { NearTestnetTransferAdapter } from '../src/settlement/near-testnet-transfer.adapter.js';
+import { ProviderAdapterError } from '../src/settlement/provider-adapter.types.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeDatabase = databaseUrl ? describe : describe.skip;
@@ -77,6 +78,8 @@ describeDatabase('private payroll persistence invariants', () => {
 
   afterAll(async () => {
     await prisma.payrollAnalysisRun.deleteMany({ where: { organizationId } });
+    await prisma.payrollPayoutItem.deleteMany({ where: { organizationId } });
+    await prisma.payrollPayoutRun.deleteMany({ where: { organizationId } });
     await prisma.payrollBatch.deleteMany({ where: { organizationId } });
     await prisma.employeeProfile.deleteMany({ where: { organizationId } });
     await prisma.$transaction(async (tx) => {
@@ -176,5 +179,115 @@ describeDatabase('private payroll persistence invariants', () => {
         data: { manifestDigest: 'f'.repeat(64) },
       }),
     ).rejects.toThrow('manifest fields cannot change');
+  });
+
+  it('T-PAY-07/T-PAY-10 durably rechecks only the originally submitted payout hash', async () => {
+    const payoutEnvironment = parseEnvironment({
+      DATABASE_URL: databaseUrl,
+      ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 11).toString('base64'),
+      ENCRYPTION_KEY_VERSION: 'integration-key-v1',
+      LIVE_TRANSFERS_ENABLED: 'true',
+      NEAR_TESTNET_TRANSFERS_ENABLED: 'true',
+      FEATURE_PAYROLL_BATCH_PAYOUT: 'true',
+    });
+    const transactionHash = randomUUID()
+      .replaceAll('-', '')
+      .replaceAll('0', '1')
+      .padEnd(43, '1');
+    const verifyAndClaim = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ProviderAdapterError('PROVIDER_UNAVAILABLE', 'RPC timeout'),
+      )
+      .mockImplementation(async (instruction) => ({
+        ...instruction,
+        provider: 'near-testnet',
+        evidenceDigest: 'e'.repeat(64),
+        verifiedAt: '2026-11-14T00:00:00.000Z',
+      }));
+    const payoutService = new PayrollService(
+      store,
+      unavailable,
+      verifier,
+      new PayrollEnvelopeEncryption(payoutEnvironment),
+      new AssetRegistry(),
+      payoutEnvironment,
+      {
+        walletTransaction: vi.fn(async (instruction) => ({
+          network: 'testnet',
+          signerAccountId: instruction.signerAccountId,
+          receiverId: instruction.receiverAccountId,
+          actions: [
+            { type: 'Transfer', amountAtomic: instruction.amountAtomic },
+          ],
+        })),
+        verifyAndClaim,
+      } as unknown as NearTestnetTransferAdapter,
+    );
+    const payoutBatch = await payoutService.importSynthetic(
+      organizationId,
+      financeUserId,
+      {
+        reference: `SYNTHETIC-PAYOUT-${randomUUID()}`,
+        assetId: 'near:testnet:native',
+        synthetic: true,
+        perEmployeeCapAtomic: '5000000',
+        batchCapAtomic: '5000000',
+        csv: [
+          'employee_code,user_id,legal_name,address,payout_account,gross_amount_atomic',
+          `EMP-001,${employeeUserId},Synthetic Person,Synthetic Address,employee.testnet,1000000`,
+        ].join('\n'),
+      },
+    );
+    await payoutService.approve(
+      organizationId,
+      payoutBatch.id,
+      financeUserId,
+      payoutBatch.manifestDigest,
+      payoutBatch.version,
+    );
+    const prepared = await payoutService.preparePayout(
+      organizationId,
+      payoutBatch.id,
+      financeUserId,
+      'payer.testnet',
+      `payroll:${payoutBatch.id}:v2`,
+    );
+    const itemId = prepared.items[0]!.id;
+
+    await expect(
+      payoutService.reconcilePayoutItem(
+        organizationId,
+        payoutBatch.id,
+        itemId,
+        financeUserId,
+        transactionHash,
+      ),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+    await expect(
+      prisma.payrollPayoutItem.findUniqueOrThrow({ where: { id: itemId } }),
+    ).resolves.toMatchObject({
+      status: 'RECONCILING',
+      transactionHash,
+    });
+    await expect(
+      payoutService.reconcilePayoutItem(
+        organizationId,
+        payoutBatch.id,
+        itemId,
+        financeUserId,
+        '2'.repeat(43),
+      ),
+    ).rejects.toMatchObject({ code: 'PAYROLL_PAYOUT_CONFLICT' });
+    expect(verifyAndClaim).toHaveBeenCalledTimes(1);
+    await expect(
+      payoutService.reconcilePayoutItem(
+        organizationId,
+        payoutBatch.id,
+        itemId,
+        financeUserId,
+        transactionHash,
+      ),
+    ).resolves.toMatchObject({ status: 'SETTLED' });
   });
 });

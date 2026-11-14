@@ -161,7 +161,10 @@ const payoutRunOpenApi: SchemaObject = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           payrollLineId: { type: 'string', format: 'uuid' },
-          status: { type: 'string', enum: ['PREPARED', 'VERIFIED'] },
+          status: {
+            type: 'string',
+            enum: ['PREPARED', 'RECONCILING', 'VERIFIED'],
+          },
           transactionHash: { oneOf: [{ type: 'string' }, { type: 'null' }] },
           evidenceDigest: { oneOf: [{ type: 'string' }, { type: 'null' }] },
           verifiedAt: {

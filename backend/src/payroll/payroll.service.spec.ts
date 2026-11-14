@@ -1,6 +1,7 @@
 import { parseEnvironment } from '../config/env.js';
 import { AssetRegistry } from '../treasury/asset-registry.js';
 import { NearTestnetTransferAdapter } from '../settlement/near-testnet-transfer.adapter.js';
+import { ProviderAdapterError } from '../settlement/provider-adapter.types.js';
 import { PayrollEnvelopeEncryption } from './payroll-crypto.js';
 import { PayrollService } from './payroll.service.js';
 import type {
@@ -125,6 +126,33 @@ function createStore() {
           return payoutRun;
         },
       ),
+    claimPayoutTransaction: vi.fn().mockImplementation(async (input) => {
+      if (!payoutRun || !batch) return null;
+      const item = payoutRun.items.find(({ id }) => id === input.payoutItemId);
+      if (
+        !item ||
+        (item.transactionHash &&
+          item.transactionHash !== input.transactionHash) ||
+        (!item.transactionHash && item.status !== 'PREPARED')
+      ) {
+        return null;
+      }
+      payoutRun = {
+        ...payoutRun,
+        status: 'PROCESSING',
+        items: payoutRun.items.map((candidate) =>
+          candidate.id === input.payoutItemId && !candidate.transactionHash
+            ? {
+                ...candidate,
+                status: 'RECONCILING',
+                transactionHash: input.transactionHash,
+              }
+            : candidate,
+        ),
+      };
+      batch = { ...batch, status: 'PROCESSING' };
+      return payoutRun;
+    }),
     verifyPayoutItem: vi.fn().mockImplementation(async (input) => {
       if (!payoutRun || !batch) return null;
       payoutRun = {
@@ -227,7 +255,7 @@ function fixture(
       evidenceDigest: 'e'.repeat(64),
       verifiedAt: '2026-11-09T12:00:00.000Z',
     })),
-  } as unknown as NearTestnetTransferAdapter;
+  };
   const service = new PayrollService(
     store,
     analyzer,
@@ -235,7 +263,7 @@ function fixture(
     new PayrollEnvelopeEncryption(environment),
     new AssetRegistry(),
     environment,
-    transfers,
+    transfers as unknown as NearTestnetTransferAdapter,
   );
   return { service, store, analyzer, verifier, transfers };
 }
@@ -551,5 +579,78 @@ describe('PayrollService', () => {
       ),
     ).resolves.toMatchObject({ status: 'SETTLED' });
     expect(test.transfers.verifyAndClaim).toHaveBeenCalledTimes(2);
+  });
+
+  it('T-PAY-07/T-PAY-10 retains uncertain evidence and never offers a replacement spend', async () => {
+    const test = fixture({ payoutEnabled: true });
+    const batch = await imported(test, 'near:testnet:native');
+    await test.service.approve(
+      organizationId,
+      batchId,
+      actorUserId,
+      batch.manifestDigest,
+      1,
+    );
+    await test.service.preparePayout(
+      organizationId,
+      batchId,
+      actorUserId,
+      'payer.testnet',
+      'payroll-2026-10-v1',
+    );
+    await expect(
+      test.service.reconcilePayoutItem(
+        organizationId,
+        batchId,
+        payoutItemOne,
+        actorUserId,
+        'not-a-transaction-hash',
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    expect(test.store.claimPayoutTransaction).not.toHaveBeenCalled();
+    test.transfers.verifyAndClaim.mockRejectedValueOnce(
+      new ProviderAdapterError('PROVIDER_UNAVAILABLE', 'RPC timeout'),
+    );
+
+    await expect(
+      test.service.reconcilePayoutItem(
+        organizationId,
+        batchId,
+        payoutItemOne,
+        actorUserId,
+        transactionOne,
+      ),
+    ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+    const retained = await test.service.preparePayout(
+      organizationId,
+      batchId,
+      actorUserId,
+      'payer.testnet',
+      'payroll-2026-10-v1',
+    );
+    expect(retained.items[0]).toMatchObject({
+      status: 'RECONCILING',
+      transactionHash: transactionOne,
+      transaction: null,
+    });
+    await expect(
+      test.service.reconcilePayoutItem(
+        organizationId,
+        batchId,
+        payoutItemOne,
+        actorUserId,
+        transactionTwo,
+      ),
+    ).rejects.toMatchObject({ code: 'PAYROLL_PAYOUT_CONFLICT' });
+    await expect(
+      test.service.reconcilePayoutItem(
+        organizationId,
+        batchId,
+        payoutItemOne,
+        actorUserId,
+        transactionOne,
+      ),
+    ).resolves.toMatchObject({ status: 'PROCESSING' });
   });
 });

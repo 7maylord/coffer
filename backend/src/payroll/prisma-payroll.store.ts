@@ -253,15 +253,15 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
             requestDigest: input.requestDigest,
             approvedManifestDigest: input.approvedManifestDigest,
             approvedBatchVersion: input.approvedBatchVersion,
-            items: {
-              create: input.items.map((item) => ({
-                organizationId: input.organizationId,
-                payrollLineId: item.payrollLineId,
-                instructionDigest: item.instructionDigest,
-              })),
-            },
           },
-          include: { items: { orderBy: { id: 'asc' } } },
+        });
+        await tx.payrollPayoutItem.createMany({
+          data: input.items.map((item) => ({
+            organizationId: input.organizationId,
+            payoutRunId: run.id,
+            payrollLineId: item.payrollLineId,
+            instructionDigest: item.instructionDigest,
+          })),
         });
         await tx.auditEvent.create({
           data: {
@@ -278,7 +278,12 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
             },
           },
         });
-        return mapPayoutRun(run);
+        return mapPayoutRun(
+          await tx.payrollPayoutRun.findUniqueOrThrow({
+            where: { id: run.id },
+            include: { items: { orderBy: { id: 'asc' } } },
+          }),
+        );
       });
     } catch (error) {
       if (known(error, 'P2002')) {
@@ -297,6 +302,86 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
           'Payout idempotency key or batch is already in use',
         );
       }
+      throw error;
+    }
+  }
+
+  async claimPayoutTransaction(
+    input: Parameters<PayrollStore['claimPayoutTransaction']>[0],
+  ) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "PayrollPayoutRun" WHERE "id" = ${input.payoutRunId}::uuid AND "organizationId" = ${input.organizationId}::uuid FOR UPDATE`,
+        );
+        await tx.$queryRaw(
+          Prisma.sql`SELECT "id" FROM "PayrollPayoutItem" WHERE "id" = ${input.payoutItemId}::uuid AND "organizationId" = ${input.organizationId}::uuid AND "payoutRunId" = ${input.payoutRunId}::uuid FOR UPDATE`,
+        );
+        const current = await tx.payrollPayoutItem.findFirst({
+          where: {
+            id: input.payoutItemId,
+            organizationId: input.organizationId,
+            payoutRunId: input.payoutRunId,
+          },
+        });
+        if (!current) return null;
+        if (current.transactionHash) {
+          if (current.transactionHash !== input.transactionHash) return null;
+        } else if (current.status === PayrollPayoutItemStatus.PREPARED) {
+          await tx.payrollPayoutItem.update({
+            where: { id: current.id },
+            data: {
+              status: PayrollPayoutItemStatus.RECONCILING,
+              transactionHash: input.transactionHash,
+            },
+          });
+          await tx.auditEvent.create({
+            data: {
+              organizationId: input.organizationId,
+              actorId: input.actorUserId,
+              eventType: 'PAYROLL_PAYOUT_EVIDENCE_SUBMITTED',
+              entityType: 'PAYROLL_PAYOUT_ITEM',
+              entityId: current.id,
+              correlationId: randomUUID(),
+              metadata: {
+                payoutRunId: input.payoutRunId,
+                transactionHash: input.transactionHash,
+              },
+            },
+          });
+        } else {
+          return null;
+        }
+        const run = await tx.payrollPayoutRun.findFirstOrThrow({
+          where: {
+            id: input.payoutRunId,
+            organizationId: input.organizationId,
+          },
+          select: { batchId: true, status: true },
+        });
+        if (run.status === PayrollPayoutRunStatus.PREPARED) {
+          await tx.payrollPayoutRun.update({
+            where: { id: input.payoutRunId },
+            data: { status: PayrollPayoutRunStatus.PROCESSING },
+          });
+          await tx.payrollBatch.updateMany({
+            where: {
+              id: run.batchId,
+              organizationId: input.organizationId,
+              status: PayrollBatchStatus.APPROVED,
+            },
+            data: { status: PayrollBatchStatus.PROCESSING },
+          });
+        }
+        return mapPayoutRun(
+          await tx.payrollPayoutRun.findUniqueOrThrow({
+            where: { id: input.payoutRunId },
+            include: { items: { orderBy: { id: 'asc' } } },
+          }),
+        );
+      });
+    } catch (error) {
+      if (known(error, 'P2002')) return null;
       throw error;
     }
   }
@@ -321,7 +406,10 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
       if (!current) return null;
       if (current.status === PayrollPayoutItemStatus.VERIFIED) {
         if (current.transactionHash !== input.transactionHash) return null;
-      } else {
+      } else if (
+        current.status === PayrollPayoutItemStatus.RECONCILING &&
+        current.transactionHash === input.transactionHash
+      ) {
         await tx.payrollPayoutItem.update({
           where: { id: current.id },
           data: {
@@ -346,12 +434,14 @@ export class PrismaPayrollStore implements PayrollStore, OnModuleDestroy {
             },
           },
         });
+      } else {
+        return null;
       }
       const pending = await tx.payrollPayoutItem.count({
         where: {
           payoutRunId: input.payoutRunId,
           organizationId: input.organizationId,
-          status: PayrollPayoutItemStatus.PREPARED,
+          status: { not: PayrollPayoutItemStatus.VERIFIED },
         },
       });
       const run = await tx.payrollPayoutRun.findFirstOrThrow({
