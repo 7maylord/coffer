@@ -172,15 +172,15 @@ LIVE_TRANSFERS_ENABLED=false
 NEAR_INTENTS_PROVIDER=one-click
 NEAR_INTENTS_DRY_QUOTES_ENABLED=true
 NEAR_INTENTS_WET_QUOTES_ENABLED=false
-NEAR_INTENTS_API_KEY=<partner JWT>
+NEAR_INTENTS_API_KEY=<partner API key>
 ```
 
 The adapter discovers current asset IDs from `/v0/tokens` and sends amounts in
 atomic units. `dry=true` obtains a preview without a deposit address. Use only
 provider-returned asset IDs; the testnet `ctUSD` contract is never an Intents
-asset. Leave both credential fields empty for unauthenticated development, or
-set exactly one of `NEAR_INTENTS_API_KEY` (the preferred `X-API-Key` header) and
-`NEAR_INTENTS_JWT` (Bearer fallback). Wet quotes require all three explicit
+asset. Leave `NEAR_INTENTS_API_KEY` empty for unauthenticated development, or
+set it to the partner API key sent through the recommended `X-API-Key` header.
+Wet quotes require all three explicit
 gates: dry quotes, wet quotes, and live transfers. Official 1Click mainnet
 execution is not enabled by the testnet UI.
 

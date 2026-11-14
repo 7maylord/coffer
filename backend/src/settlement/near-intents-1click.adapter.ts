@@ -379,11 +379,6 @@ export class NearIntents1ClickAdapter {
     if (this.environment.NEAR_INTENTS_PROVIDER === 'one-click') {
       if (this.environment.NEAR_INTENTS_API_KEY) {
         headers.set('x-api-key', this.environment.NEAR_INTENTS_API_KEY);
-      } else if (this.environment.NEAR_INTENTS_JWT) {
-        headers.set(
-          'authorization',
-          `Bearer ${this.environment.NEAR_INTENTS_JWT}`,
-        );
       }
     }
     let response: Response;

@@ -22,11 +22,14 @@ is accepted.
 
 The authenticated, verified organization wallet signs each transaction. The
 backend stores no signing key and the AI receives no signing or transfer tool.
-For every submitted hash, Coffer independently resolves final NEAR RPC evidence
+For every submitted hash, Coffer first claims that hash transactionally and
+marks the line `RECONCILING`, then independently resolves final NEAR RPC evidence
 and verifies network, signer, receiver, asset, exact integer amount, method,
 arguments, gas, deposit, receipts, and success. Transaction evidence is
 idempotent only when every bound field matches; replay across another tenant or
-line fails. A database lock serializes item reconciliation, and the batch
+line fails. An RPC outage retains the original hash, returns no replacement
+wallet transaction, and accepts only a same-hash recheck. A database lock
+serializes item reconciliation, and the batch
 becomes settled only after every line is verified.
 
 Payroll plaintext remains in its existing encrypted envelope. The payout tables

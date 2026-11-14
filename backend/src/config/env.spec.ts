@@ -104,15 +104,6 @@ describe('environment safety', () => {
     ).toMatchObject({ FEATURE_PAYROLL_BATCH_PAYOUT: true });
   });
 
-  it('rejects ambiguous Intents credentials', () => {
-    expect(() =>
-      parseEnvironment({
-        NEAR_INTENTS_API_KEY: 'partner-jwt',
-        NEAR_INTENTS_JWT: 'second-partner-jwt',
-      }),
-    ).toThrow('Invalid configuration: NEAR_INTENTS_API_KEY');
-  });
-
   it('pins Tidepool to its public origin and keeps wet quotes explicitly gated', () => {
     expect(
       parseEnvironment({

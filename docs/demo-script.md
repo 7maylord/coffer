@@ -1,87 +1,157 @@
-# Coffer demo script and evidence map
+# Coffer autonomous-business demo script and evidence map
 
-This script uses synthetic data and defaults to `SETTLEMENT_MODE=mock` and
-`LIVE_TRANSFERS_ENABLED=false`. Do not enter payroll PII, fund a wallet, deploy
-a contract, or enable a live provider for this demo.
+Status: Gate G4 is locally rehearsed with live NEAR testnet quorum evidence and
+the honest private-AI fallback. Exact results are in `docs/g4-evidence.md`.
+Use only synthetic business and payroll data. Do not claim verified private AI
+unless a fresh recorded call passes every attestation and deployment check.
+
+## The story
+
+Coffer is the policy-controlled financial operating system that lets a business
+safely delegate finance operations to AI agents on NEAR. A customer payment is
+not the end of the workflow: verified settlement starts a bounded finance-agent
+run that reads authorized evidence, requests verified private inference,
+applies deterministic policy, performs safe internal allocations, requests an
+exact wallet signature for any external transfer, and reconciles the result.
+
+```text
+Earn -> observe -> decide -> constrain -> act -> reconcile -> adapt
+```
+
+The model never receives a signing key, cannot change policy, and cannot turn
+its own output into permission. External funds move only after an authorized
+wallet signs the exact reviewed transaction.
 
 ## Architecture shown to reviewers
 
 ```mermaid
 flowchart LR
-  U[Reviewer / NEAR wallet] --> W[Next.js frontend]
-  W -->|same-origin session API| A[NestJS API]
-  A --> D[(PostgreSQL)]
-  A --> R[(Redis / outbox)]
-  R --> K[Worker]
-  K --> M[Mock settlement adapter]
-  A -. final-view verification .-> N[NEAR testnet RPC]
-  A -. guarded discovery / dry quote .-> I[NEAR Intents 1Click]
-  A -. disabled unless verified .-> C[NEAR AI Cloud]
-  A -. optional commitment proof .-> P[NEAR policy contract]
+  U[Owner / payer NEAR wallet] --> W[Next.js frontend]
+  W -->|NEP-413 session + same-origin API| A[NestJS API]
+  A --> D[(PostgreSQL ledger + audit)]
+  A --> O[API-owned durable outbox processor]
+  O -->|verified settlement event| F[Finance agent run]
+  F -->|scoped typed request| N[NEAR AI Cloud]
+  F --> E[Deterministic policy engine]
+  E -->|ALLOW: internal only| D
+  E -->|external effect| W
+  W -->|wallet-signed exact transaction| R[NEAR testnet RPC]
+  O -->|independent finality + action verification| R
+  A --> P[Per-business NEAR policy instance]
+  O -. guarded discovery / quote .-> I[1Click or Tidepool adapter]
 ```
 
-Solid arrows are the default local path. Dotted integrations are guarded,
-fail-closed, and must not be described as live unless their retained evidence
-is shown.
+PostgreSQL remains authoritative for the off-chain ledger and agent-run state.
+The API process owns durable polling and reconciliation; no separately deployed
+worker is required. The policy contract records commitments and quorum but does
+not custody funds. Tidepool is testnet routing evidence, not 1Click mainnet.
 
 ## Reproducible local start
 
-Use the repository onboarding instructions and environment examples first.
-Then, from the repository root:
+From the repository root:
 
 ```sh
+nvm use
 docker compose up -d postgres redis
-pnpm --dir backend prisma:migrate:deploy
-pnpm --dir backend prisma:seed
-pnpm --dir backend dev
-pnpm --dir frontend dev
+pnpm db:migrate:deploy
+pnpm db:seed:synthetic
+pnpm dev
 ```
 
-The seed is idempotent and creates only synthetic roles, one issued invoice,
-and one uncertain mock settlement. Payroll is intentionally imported through
-the authenticated synthetic CSV flow. To reset an explicitly confirmed local,
-non-production database:
+Open `http://localhost:3000`. `/overview` is the wallet-authenticated,
+tenant-backed product. `/demo/overview` is a separate fictional visual
+walkthrough and cannot prove the autonomous flow.
 
-```sh
-CONFIRM_LOCAL_DB_RESET=yes pnpm --dir backend prisma:reset:local
-```
+## Primary X video — 2 minutes 15 seconds
 
-The public visual walkthrough starts at `/demo/overview`. Canonical routes use
-a backend-issued session from a fresh NEP-413 signature.
+This cut stays below the standard X 140-second upload limit while leaving a few
+seconds for encoding variance. Record it as edited segments; blockchain
+finality does not need to happen in real time on camera.
 
-## Seven-minute narrative
+1. **Problem and promise (0:00-0:12).** Show the landing page. Say: “Coffer is
+   a NEAR-native financial operating system where AI proposes, policy
+   constrains, wallets authorize and every external effect is reconciled.”
+2. **Identity and business boundary (0:12-0:25).** Sign in with a testnet NEAR
+   wallet and open the synthetic Northstar Studio workspace. State that NEP-413
+   proves wallet ownership without moving funds and that every record is
+   tenant-scoped.
+3. **Earn and observe (0:25-0:55).** Create and issue a small native-NEAR
+   testnet invoice. Open the hosted payer page, sign its exact transaction, then
+   show the invoice becoming paid only after final RPC verification. Briefly
+   show the explorer transaction.
+4. **Decide and constrain (0:55-1:25).** Open the automatically created Finance
+   Agent run. Show the triggering settlement evidence, typed proposal,
+   supporting record IDs, policy version and exact digest. If the fresh NEAR AI
+   proof is green, show its verified provider-TEE status. Otherwise show
+   `verification unavailable`, say that private inference failed closed, and
+   continue only with the deterministic policy demonstration.
+5. **Act safely (1:25-1:48).** Show policy automatically reserving an allowed
+   internal payroll/operations allocation. Then show an external payout or
+   purchase as `READY_FOR_SIGNATURE`; the model cannot sign it. Approve only
+   the exact wallet transaction if rehearsed successfully.
+6. **Reconcile and adapt (1:48-2:05).** Show the final transaction observation,
+   balanced ledger posting and completed agent-run timeline. Open Activity and
+   show that unknown, failed and duplicate evidence do not become settled.
+7. **Close (2:05-2:15).** Say: “Coffer lets a business automate its finance
+   cycle without giving autonomous software unrestricted custody. Built at
+   NEAR HACKATHON.” End on the product and repository URLs.
 
-1. **Truth boundary (30 s):** open the landing page, choose the no-wallet demo,
-   and point out `DEMO MODE`, `Synthetic UI data`, and `No funds move`.
-2. **J-01 invoice (75 s):** show the invoice shape, then use the retained
-   canonical Playwright/API evidence for quote review, mock authorization,
-   reconciliation, and the rule that only verified settlement can mark paid.
-3. **J-02 CFO proposal (60 s):** show scoped evidence, an exact maximum, typed
-   allocation output, and the human reserve action. State that the demo is
-   deterministic and that live NEAR AI attestation is unavailable.
-4. **J-03 bounded agent purchase (75 s):** show the vendor allowlist, exact
-   mock asset, per-purchase/rolling limits, offer digest, distinct approval,
-   and mock fulfillment. Show the over-limit/adversarial denial test result.
-5. **J-04 shared treasury (75 s):** propose the 50/30/20 split, show immutable
-   revisions and two distinct human approvals, then explain that quorum creates
-   an internal reservation and never authorizes an automatic payout.
-6. **J-05 synthetic payroll (75 s):** import only synthetic CSV, show encrypted
-   batch review and self-only payslip evidence, then show deterministic fallback
-   and the blocked private-AI state without claiming payout confidentiality.
-7. **Recovery and audit (50 s):** open Activity, show unknown/refunded/pending
-   states, queue an idempotent recheck, and state that queued is not settled.
-   End on the API-unavailable sign-in recovery state.
+## Optional six-minute backup walkthrough
 
-## Evidence table
+Use the longer recording for judges who want implementation detail:
 
-| Journey / track | UI evidence | Automated evidence | NEAR/provider evidence | Honest limitation |
-| --- | --- | --- | --- | --- |
-| J-01 invoice settlement | Canonical `/invoices` and `/pay/:token`; synthetic screenshot in `design/screenshots/invoices-*` | Frontend invoice settlement Playwright; backend invoice/payment HTTP E2E and reconciliation tests | Direct adapter has separately retained exact live testnet evidence; 1Click remains guarded discovery/dry quote | Demo invoice settlement remains simulated; the separately evidenced transfer did not originate from this journey |
-| J-02 AI CFO | Canonical `/cfo`; synthetic screenshot in `design/screenshots/cfo-*` | Typed-output, bounds, evidence, and adversarial-output tests | Official NEAR AI SDK is gated; live attestation-only preflight failed closed before a prompt | No live inference occurred and no private-AI claim is made |
-| J-03 agent commerce | Canonical `/agents`; synthetic screenshot in `design/screenshots/agents-*` | Offer binding, budget, quorum, denial, and mock fulfillment tests | No external vendor or chain transfer | Fulfillment and payment are mock |
-| J-04 shared treasury | Canonical `/treasury` and `/approvals`; screenshots in `design/screenshots/{treasury,approvals}-*` | Digest/revision/quorum/reservation Playwright, API, and contract tests | Local contract artifacts and Sandbox evidence exist | Contract is undeployed; approvals are not fresh per-action wallet signatures |
-| J-05 private payroll | Canonical `/payroll`; synthetic screenshot in `design/screenshots/payroll-*` | Tenant/role/self-only, encryption, manifest, payout state-machine and fail-closed private-AI tests | Direct transfer reconciliation and strict AI preflight have separate evidence | No real payroll, live inference, browser payroll payout or confidential transfer occurred |
-| Negative security / operations | Canonical `/activity`; screenshot in `design/screenshots/activity-*` | Unknown/refunded/underfunded, duplicate, idempotency, tenant denial, audit-chain, and recheck tests | Provider/RPC observations remain mocked unless separately evidenced | Local hash-chain evidence is not external notarization |
+1. wallet authentication, organization isolation and configured constraints;
+2. invoice creation, wallet payment, explorer evidence and reconciliation;
+3. the automatic `INVOICE_SETTLED` trigger and idempotent Finance Agent run;
+4. verified NEAR AI inference if freshly proven, otherwise the fail-closed
+   unavailable state, typed-output checks and prompt-injection rejection;
+5. deterministic policy, journal-only autonomous allocation and exact money;
+6. bounded seeded-vendor procurement with truthful prototype labeling;
+7. synthetic encrypted payroll and self-only employee view;
+8. per-business policy contract, two distinct approvals and immutable digest;
+9. unknown/refund/retry recovery, audit timeline and emergency pause.
 
-The complete accessibility audit is in `docs/design/f07-audit.md`. G5 owner
-actions are tracked separately in `docs/submission-checklist.md`.
+## Recording readiness gates
+
+- [x] **AB-01 (local evidence):** one verified invoice settlement creates exactly one durable
+  Finance Agent run; duplicate settlement events cannot create another.
+- [x] **AB-02 (fail-closed fallback):** the official NEAR AI adapter requires
+  provider-TEE verification and an approved deployment digest. The current
+  recording must say verification is unavailable and make no private-AI claim.
+  Replace this fallback with a verified result only after a fresh live proof.
+- [x] **AB-03:** an `ALLOW` decision can perform only an internal balanced
+  reservation automatically; no model output directly moves funds.
+- [x] **AB-04:** every external transfer still requires an authorized wallet
+  signature and independent finality/action verification.
+- [x] **AB-05:** the agent purchase uses the seeded provider, remains within its
+  allowlist and budget, and is described as prototype fulfilment rather than an
+  external production marketplace.
+- [x] **AB-06:** the run timeline exposes its trigger, objective, evidence,
+  inference, policy decision, action digest and reconciliation result.
+- [x] **G4 contract proof:** the immutable proposal was approved by
+  `olymight.testnet` and `olumight.testnet`; the final contract state is
+  `Approved`. Explorer links are recorded in `docs/g4-evidence.md`.
+- [ ] The video contains no secret, wallet key, payroll PII, real customer data
+  or unsupported privacy/custody claim.
+- [ ] Every shown explorer link is rechecked for testnet, signer, recipient,
+  asset, exact amount and finality.
+
+If AB-01 through AB-06 are not all green, do not use the complete autonomous
+loop narration. Present Coffer instead as a policy-controlled finance platform
+with AI-assisted proposals and separately identify each missing step.
+
+## Evidence map
+
+| Proof | Required UI evidence | Automated / external evidence | Honest boundary |
+| --- | --- | --- | --- |
+| Verified revenue | Invoice, payer page, paid state and transaction hash | Direct NEAR testnet signer/receiver/amount/finality verification; T-PAY-06/10/11 | Testnet NEAR has no production monetary claim |
+| Autonomous trigger | One Finance Agent run linked to one settled payment | Duplicate-event and transactional-outbox integration test | Event autonomy does not grant signing authority |
+| AI-native decision | Typed allocation, evidence refs, provider-TEE status and approved deployment digest | T-AI-01–05 and live attestation evidence | No verified result means no private-AI claim |
+| Policy-controlled action | `ALLOW`, `DENY` or `REQUIRES_APPROVAL`, policy version and digest | T-POL-01–06 and T-LED-01–07 | Automatic action is journal-only for the MVP |
+| External execution | Exact wallet transaction and later verified observation | RPC/receipt reconciliation and replay protection | A human-controlled wallet signs every external transfer |
+| Agent procurement | Allowlisted seeded offer, rolling budget, approval and fulfilment | T-AGT-01–06 | Seeded provider is not an open agent marketplace |
+| Private payroll | Encrypted synthetic batch and self-only payslip | T-PRV-01–10 | No real payroll, tax or confidential public-chain payout claim |
+| NEAR policy | Per-business instance, immutable proposal digest and distinct approvals | Deployed testnet factory/policy artifacts and contract tests | Contract commits policy evidence; it never holds treasury funds |
+
+G5 publication and human-controlled actions remain in
+`docs/submission-checklist.md`.

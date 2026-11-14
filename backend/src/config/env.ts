@@ -94,7 +94,6 @@ const envSchema = z
       'https://1click.chaindefuser.com',
     ),
     NEAR_INTENTS_API_KEY: optionalSecret,
-    NEAR_INTENTS_JWT: optionalSecret,
     NEAR_TEST_TOKEN_CONTRACT_ID: optionalNearAccount,
     NEAR_TEST_TOKEN_CODE_HASH: optionalNearHash,
     NEAR_POLICY_FACTORY_ACCOUNT_ID: optionalNearAccount,
@@ -122,13 +121,6 @@ const envSchema = z
       .default('z-ai/glm-5.3-flash'),
   })
   .superRefine((value, context) => {
-    if (value.NEAR_INTENTS_API_KEY && value.NEAR_INTENTS_JWT) {
-      context.addIssue({
-        code: 'custom',
-        path: ['NEAR_INTENTS_API_KEY'],
-        message: 'Configure only one NEAR Intents credential',
-      });
-    }
     if (
       value.NEAR_INTENTS_PROVIDER === 'tidepool' &&
       new URL(value.NEAR_INTENTS_API_URL).origin !==

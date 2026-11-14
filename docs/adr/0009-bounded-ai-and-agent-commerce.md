@@ -50,6 +50,18 @@ creates the existing immutable central-policy proposal and
 mock fulfillment revalidates agent status, offer digest, policy, quorum and
 verified wallet approval.
 
+An allowed Finance Agent reservation emits one durable procurement request only
+when agent execution is explicitly enabled. The processor fails closed unless
+exactly one active tenant agent matches the run asset, the fixed seeded service
+and the fixed vendor registration. It requests one financial-document
+classification offer, rejects a price above the reserved run amount, links the
+agent, offer and purchase to the run through tenant-scoped foreign keys, and
+stops at `PROCUREMENT_AWAITING_APPROVAL`. Outbox replay cannot request a second
+offer or proposal after that state is recorded. The purchase UUID is also the
+immutable proposal key. If the process stops after proposal creation but before
+purchase linkage, retry retrieves the same revision, verifies every
+authority-bearing field, and completes the link.
+
 ## Known incomplete work
 
 - No real NEAR AI request was made. HTTP behavior is fixture-tested only.
@@ -58,9 +70,13 @@ verified wallet approval.
   stored and returned as `UNVERIFIED`; Coffer does not claim private inference.
 - The vendor, deliverable and payment reference are mock-only. There is no
   Agent Connect, external vendor endpoint or real settlement.
-- A crash after a durable purchase claim but before policy-proposal linkage
-  leaves a recoverable `CLAIMED` row. Automated recovery belongs to B-10; no
-  second purchase can bypass the original unique offer claim.
+- A run with no single exact eligible agent stops at
+  `PROCUREMENT_CONFIGURATION_REQUIRED`; there is no automatic agent selection
+  fallback or authority widening.
+- A retry resumes a durable `CLAIMED` purchase and reuses either the linked
+  proposal or the exact deterministic purchase-keyed proposal created before a
+  crash. Conflicting material fails closed; no second purchase or proposal can
+  bypass the original offer claim.
 - A CFO reservation created immediately before a database decision failure is
   idempotently recoverable by retry, but no operator recovery view exists yet.
 - Frontend review, warnings, diffs and execution badges remain F-04 work.

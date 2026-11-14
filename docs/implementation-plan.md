@@ -1,6 +1,6 @@
 # Coffer contract-first implementation plan
 
-- Status: executing; contracts are deployed on testnet and the local MVP is implemented, but the production release gate remains open
+- Status: executing; the local MVP is implemented and the autonomous-business vertical slice is now the final pre-submission direction
 - Date: 2026-11-12
 - Source of truth: `COFFER_PRD_TRD.md`
 - Required order: contracts, then backend, then frontend
@@ -20,7 +20,7 @@ submission checklist tasks.
 Implementation proceeds in three strict product phases:
 
 1. Complete the independently deployable NEAR contracts: the non-custodial policy and approval commitment contract, the test-only NEP-141 `ctUSD` contract, then the optional policy-instance factory for multi-tenant isolation.
-2. Complete the backend and worker behavior against stable contract and OpenAPI boundaries.
+2. Complete backend behavior and API-owned durable processors against stable contract and OpenAPI boundaries.
 3. Replace the generated frontend with the complete user journeys after the backend API is stable.
 
 The contract is an additional authorization proof, not Coffer's ledger or payment executor. It records organization, policy, proposal, revision, expiry, and approval commitments. It never stores salaries, names, invoice contents, recipients, raw amounts, wallet secrets, or provider credentials. It never receives treasury funds, calls NEAR Intents, or signs a transfer.
@@ -32,11 +32,19 @@ This ordering changes the PRD's default critical path while preserving ADR-002 t
 | Area           | Current state                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Gap before product-complete                                                                                                                          |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Contracts      | Reproducible policy and test-token WASMs from commit `08d56ef` are deployed and byte-verified at `policy.olymight.testnet` and `ctusd.olymight.testnet`; policy uses a 2-of-2 test-key quorum, 10,000 valueless ctUSD were minted with a verified 1 ctUSD transfer, and the reproducible immutable-hash factory from `a915543` is deployed and byte/configuration-verified at `factory.olymight.testnet` | Independent contract review, independently controlled production approvers, a live per-business instance/binding E2E, and mainnet readiness remain open |
-| Backend        | B-01 through B-11 are complete for the local automated implementation; factory preparation and verified owner binding are now implemented and tested against local PostgreSQL | A deployed-factory binding E2E, later policy-version synchronization, live settlement API flow, and independent human security review remain open |
-| Frontend       | Interactive Coffer design plus F-01 authenticated NEAR/Privy sessions, F-02 authoritative invoice-to-mock-settlement, F-03 authoritative treasury/policy approval, F-04 evidence-bound automation, F-05 encrypted synthetic payroll, F-06 authoritative operations/audit, and F-07 responsive/accessibility/evidence hardening                                                                                                                                                    | Manual screen-reader/Safari/Firefox and hosted-CI evidence remain open; real wallet/Privy, deployed-contract, live NEAR AI attestation, fresh approval-signature and real-transfer evidence remain absent |
-| Infrastructure | PostgreSQL and Redis Compose, separate frontend/backend pnpm projects, transactional migrations, worker/concurrency tests, contract artifact checks, credential and dependency scans, type-aware linting, critical-test manifest, coverage gate, security regression, performance smoke, and frontend Chromium tests configured in CI                                                                                                                                              | Hosted CI execution and full-stack product journey gates remain unverified                                                                           |
+| Backend        | B-01 through B-11 and AB-01 through AB-06 are complete for the local implementation; the API owns durable settlement processing and Finance Agent advancement, direct NEAR testnet invoice evidence is independently verified, and factory preparation/binding is tested against PostgreSQL | A deployed-factory binding E2E, policy-version synchronization, live verified NEAR AI evidence and independent human security review remain open |
+| Frontend       | The authenticated product covers NEAR sessions, direct testnet invoice payment, treasury/policy approval, the seven-stage Finance Agent timeline, evidence-bound automation, encrypted synthetic payroll, operations/audit and responsive/accessibility hardening; `/demo/*` remains a separate fictional walkthrough | Live verified NEAR AI evidence, manual screen-reader/Safari/Firefox and hosted-CI evidence remain open |
+| Infrastructure | PostgreSQL and Redis Compose, separate frontend/backend pnpm projects, transactional migrations, API-owned processors, concurrency tests, contract artifact checks, credential and dependency scans, type-aware linting, critical-test manifest, coverage gate, security regression, production builds and desktop/mobile Chromium G4 tests are configured and pass locally | Hosted CI execution and clean-machine rehearsal remain unverified |
 
-The `START_HERE.md` local foundation record is complete for its stated scope. The backend portion of Gate G0 is green for current routes. A frontend demo Playwright baseline now passes locally; full PRD Gate G0 remains open for authenticated frontend/backend integration. Resource-specific T-ID-05/06/07 frontend cases remain part of the integration work.
+The `START_HERE.md` local foundation record is complete for its stated scope.
+Current backend unit, integration and E2E suites and the authenticated frontend
+Chromium suite pass locally. Hosted CI and clean-machine evidence remain open.
+
+Gate G4's local/testnet demonstration evidence is complete with the honest
+private-AI fallback. The exact test results, negative cases and live two-account
+policy quorum transactions are recorded in [`docs/g4-evidence.md`](g4-evidence.md).
+A fresh verified NEAR AI call is still required before claiming verified
+private inference; G5 publication and human review remain separate.
 
 ### 2.1 Production-gap audit — 2026-11-12
 
@@ -81,6 +89,74 @@ Confirmed production blockers still open:
   are not complete.
 - Hosted CI evidence, browser/screen-reader matrix, penetration testing and an
   independent contract review remain open release evidence.
+
+### 2.2 Autonomous-business vertical slice — approved direction, 2026-11-12
+
+The hackathon story is now one coherent finance cycle rather than a collection
+of screens:
+
+```text
+verified invoice revenue -> durable Finance Agent run -> verified typed AI
+proposal -> deterministic policy -> automatic internal reservation -> exact
+wallet-authorized external effect -> independent reconciliation -> next state
+```
+
+This direction implements the P0 intent of COF-104, COF-201/202, COF-301–303
+and COF-401–403 while preserving ADR-002 and ADR-004. “Autonomous” means that a
+verified business event starts and advances bounded work without an operator
+pressing a run button. It does not mean that an LLM holds keys, rewrites policy
+or signs a transfer. The strongest honest track claim remains AI Security &
+Defense; Autonomous Business becomes independently demonstrable only when the
+slice below passes end to end.
+
+| Ticket | Scope and acceptance | Requirements / tests | Status |
+| --- | --- | --- | --- |
+| **AB-01 — durable trigger and run** | Add a tenant-scoped, versioned Finance Agent run. The first verified `INVOICE_SETTLED` ledger posting creates exactly one run in the same durable event pipeline; duplicate observations and API restarts cannot create another. Persist trigger, objective, source evidence IDs, state, correlation ID and timestamps. | COF-104/201/202; FR-PAY-004–006, FR-AUD-001–003; T-PAY-04/06/07/11 | **Complete (local, 2026-11-13):** `FinanceAgentRun` is tenant-bound to its invoice, payment and settlement posting; the posting processor idempotently creates the queued run and append-only audit event. The integration suite replays the posting through a fresh processor and proves one run/one audit event. Live testnet invoice evidence remains part of the final G2/G4 rehearsal. |
+| **AB-02 — verified decision** | Feed only authorized invoice, treasury and payroll-summary evidence to `NearAiCfoInferenceAdapter`. Require strict typed output, exact integer ceilings, provider-TEE response verification and an approved deployment digest. An unavailable or unverified provider records a failed run step and performs no AI-labelled action. | COF-401/402; FR-AI-001–004; T-AI-01–05, T-PRV-07/08 | **Complete for the fail-closed G4 fallback; live claim open (2026-11-14):** a durable API-owned processor sends only the settled invoice record, exact posting amount and fixed `OPERATING_RESERVE` category to the existing official-SDK adapter. It persists SDK verification evidence and a schema/bounds-checked decision exactly once; unavailable, unapproved or unverified results become `DECISION_FAILED` without a reservation or money mutation. Unit and PostgreSQL restart/fail-closed tests pass. A fresh provider call with current preflight evidence and a human-approved deployment digest is still required before a verified-private-AI demo claim. |
+| **AB-03 — policy-controlled internal action** | Convert the validated proposal into the existing immutable proposal digest and run the deterministic policy engine. `DENY` stops; `REQUIRES_APPROVAL` waits; `ALLOW` may create only balanced journal reservations atomically. No automatic live transfer or recipient mutation is added. | COF-103/301–303; FR-POL-001–003, FR-TRE-003; T-LED-01–07, T-POL-01–06 | **Complete locally (2026-11-14):** the API processor revalidates the stored typed decision, locks the tenant policy boundary, evaluates the existing fail-closed engine, and persists policy version/digest, reason codes, canonical instruction digest and exact action material. `DENY` stops, `REQUIRES_APPROVAL` waits, and only `ALLOW` creates one idempotent ledger-backed reservation against verified settlement cash. Human proposals and autonomous commitments share the rolling cap; a changed, frozen, expired or malformed policy cannot reserve. Replay creates no second reservation, and no wallet/signing/transfer path was added. |
+| **AB-04 — external action boundary** | For any payout or purchase, produce the exact canonical wallet transaction and bind it to the approved revision. Resume the run only after the authorized wallet signs and Coffer independently verifies finality, signer, recipient, asset, amount and action. Unknown evidence remains in reconciliation and is never retried as a new spend. | COF-203; FR-PAY-005–007; T-PAY-03/06/07/10/11 | **Complete locally (2026-11-14):** the live payroll boundary reuses the canonical NEAR transaction adapter and approved manifest/version. A submitted wallet hash is now claimed transactionally before RPC verification; an outage leaves the item `RECONCILING`, suppresses every replacement wallet request, and permits only a same-hash recheck. Settlement still requires exact finalized signer/receiver/asset/amount/action evidence. Seeded procurement moves no external funds and remains AB-05; a browser-wallet payout rehearsal remains optional G3/final-video evidence rather than a backend-signing shortcut. |
+| **AB-05 — bounded procurement proof** | Reuse the seeded provider and current offer-digest workflow. A run may request only the registered service, within the agent/vendor/rolling limits and expiry. Keep fulfilment explicitly labelled as a seeded prototype; do not imply an external marketplace or mainnet settlement. | COF-403; FR-AGT-001–004; T-AGT-01–06 | **Complete locally (2026-11-14):** after an allowed internal reservation, the API-owned outbox may select exactly one active tenant agent whose asset, seeded service and vendor registration match the run. It requests one fixed financial-document classification offer, rejects an offer above the reserved amount, and reuses the existing offer-digest, per-purchase, rolling-budget, expiry and central-policy checks. The run durably links the agent, offer and purchase and stops at `PROCUREMENT_AWAITING_APPROVAL`; replay requests neither a second offer nor a second proposal. Human wallet approval remains mandatory before the existing seeded fulfilment path. No external marketplace or live payment is claimed. |
+| **AB-06 — operator and judge experience** | Add one Finance Agent timeline showing trigger, verified evidence, inference status, policy reason, digest, internal reservation, signature boundary and reconciliation result. Update OpenAPI, demo fixtures, Activity and desktop/mobile E2E. | COF-601–603; FR-AUD-001–003; G2/G4/G5 | **Complete locally (2026-11-14):** authenticated Activity now reads a tenant-scoped API timeline with seven explicit stages: verified trigger, ledger evidence, inference verification, deterministic policy, internal reservation, human approval boundary and independent reconciliation. The view exposes correlation/evidence IDs, policy version and instruction digest while stating that backend signing is disabled and procurement is seeded fulfilment only. OpenAPI and runtime schemas are synchronized; PostgreSQL integration, authenticated API E2E and desktop/mobile Playwright coverage pass. The earlier purchase-link crash window is closed for new work by deriving the immutable proposal key from the purchase ID: retries validate and reuse the exact existing proposal before linking it, so they cannot create an orphan or widen authority. Live verified NEAR AI remains a separate claim gate; the G4 fallback and live contract-quorum evidence are recorded in `docs/g4-evidence.md`. |
+
+#### Delivery order and stop rule
+
+1. **AB-01 first:** migration, domain state machine, transactional trigger and
+   duplicate/restart integration tests.
+2. **AB-02 and AB-03 next:** live verified inference plus the smallest safe
+   autonomous effect—an internal balanced reservation.
+3. **AB-04 next:** reuse the existing wallet and reconciliation boundary; do
+   not create a signing service or backend custody path.
+4. **AB-05 only after the core cycle is green:** it strengthens the Agent
+   Economy story but is not allowed to destabilize invoice-to-ledger evidence.
+5. **AB-06 last:** expose the already-tested state machine, then freeze for the
+   recording and clean-install rehearsal.
+
+If live NEAR AI verification is unavailable by the recording freeze, stop the
+AI step, label it unavailable and submit Coffer primarily for AI Security &
+Defense and Real-World Money. Do not call deterministic fallback “verified AI,”
+and do not claim the complete Autonomous Business loop.
+
+#### Definition of done
+
+- One wallet-signed native-NEAR testnet invoice produces one verified ledger
+  posting and exactly one Finance Agent run.
+- The run has byte-exact evidence showing whether inference was verified,
+  unavailable or rejected; model output alone never updates money state.
+- An allowed internal allocation produces balanced reservation entries once;
+  denial, approval wait, duplicate delivery and restart cases remain safe.
+- External funds never move without the exact authorized wallet signature and
+  independent reconciliation.
+- The authenticated UI and Activity timeline show the entire causal chain with
+  no mock, private, autonomous or settled claim beyond retained evidence.
+- OpenAPI, migration, ADR/demo documentation, unit/integration/full-stack E2E,
+  lint, typecheck, security scan and production builds pass on the submission
+  revision.
+
+#### Explicit non-goals before submission
+
+No new contract, unrestricted agent wallet, backend signer, mainnet 1Click
+transfer, external vendor marketplace, email workflow, recurring scheduler or
+general-purpose orchestration engine is added for this slice.
 
 ## 3. Locked architecture and safety decisions
 
@@ -387,7 +463,7 @@ make no external service calls. OpenAPI is unchanged because no API changed.
 | G1   | Durable ledger, idempotency, policy, settlement, outbox worker, reconciliation, and concurrency tests                                                                                                                                                                                                                                       |
 | G2   | J-01 invoice -> proposal/authorization -> mock settlement -> reconciliation -> ledger -> UI passes E2E                                                                                                                                                                                                                                      |
 | G3   | Real testnet proof may use the native policy contract plus a wallet-signed native testnet NEAR or `ctUSD` NEP-141 transfer, clearly labeled with its exact test asset and contract. Current 1Click provider preflight and dry quote remain separate; any low-value mainnet transfer requires an owner-approved runbook and manual signature |
-| G4   | J-02 through J-05, contract quorum proof, negative security demos, and honest privacy evidence                                                                                                                                                                                                                                              |
+| G4   | **Complete for local/testnet demonstration scope on 2026-11-14:** J-02 through J-05, live two-account contract quorum, negative security cases, and honest private-AI-unavailable evidence are recorded in `docs/g4-evidence.md`. A verified-private-AI track claim remains disabled until a fresh attested provider call passes. |
 | G5   | Fresh installs for frontend/backend/contracts, full CI, architecture/demo docs, screenshots/video, public repository and submission actions completed by an authorized human                                                                                                                                                                |
 
 ## 8. Suggested hackathon schedule
