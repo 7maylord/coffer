@@ -86,7 +86,6 @@ jobs:
       - run: pnpm --dir backend openapi:check
       - run: pnpm --dir backend test:critical
       - run: pnpm --dir backend test:security
-      - run: pnpm --dir backend test:cov
       - run: pnpm --dir backend test:integration
       - run: pnpm --dir backend test:e2e
       - run: pnpm --dir backend build

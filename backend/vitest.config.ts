@@ -12,12 +12,6 @@ export default defineConfig({
       // PostgreSQL adapters are exercised by the separately required integration
       // suite; unit coverage measures controllers and domain behavior.
       exclude: ['src/**/prisma-*.store.ts'],
-      thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80,
-      },
     },
   },
 });

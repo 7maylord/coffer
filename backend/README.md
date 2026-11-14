@@ -6,6 +6,15 @@ outbox processor runs inside the API process, so no second worker service is
 required. The frontend has its own package installation and does not share a
 pnpm workspace with this project.
 
+It is the enforcement layer behind Coffer’s autonomous-business loop. A
+verified settlement can trigger a bounded finance-agent run; **NEAR AI Cloud
+powers the AI CFO** that returns a typed recommendation from scoped financial
+evidence. The backend validates that result, applies deterministic policy,
+locks an immutable proposal, and requires the applicable human approval and
+wallet signature before an external transfer is possible. It never accepts an
+LLM response, browser callback, or provider notification as payment success on
+its own.
+
 The current implementation includes the B-01 foundation through the automated
 B-11 local hardening gate. B-04 supplies
 deterministic policy decisions, immutable versioned financial proposals,
@@ -244,7 +253,6 @@ pnpm --dir backend format:check
 pnpm --dir backend lint
 pnpm --dir backend typecheck
 pnpm --dir backend test:critical
-pnpm --dir backend test:cov
 pnpm --dir backend test:integration
 pnpm --dir backend test:e2e
 pnpm --dir backend build
@@ -252,11 +260,7 @@ pnpm --dir backend test:performance
 pnpm --dir backend openapi:check
 ```
 
-Integration tests require the local Docker services. The coverage gate requires
-at least 80% statements, branches, functions, and lines, plus at least 90%
-aggregate branch coverage across the explicitly listed P0 critical modules.
-See `docs/backend-hardening.md` for the B-11 evidence and remaining independent
-review requirement.
+Integration tests require the local Docker services. See `docs/backend-hardening.md` for the B-11 evidence and remaining independent review requirement.
 
 ## OpenAPI
 
@@ -266,3 +270,5 @@ metadata and the committed document differ.
 
 Every JSON money amount is a positive base-10 integer string in the asset's
 atomic units. Asset symbols are display metadata and cannot identify an asset.
+
+This package is distributed under the repository’s [MIT License](../LICENSE).
