@@ -15,7 +15,7 @@
 
 ## Owner-controlled actions — do not automate
 
-- [ ] Select the final license and confirm all third-party asset/code provenance.
+- [x] MIT license added at the repository root; confirm third-party asset/code provenance before publication.
 - [ ] Approve and publish the repository; verify that secrets and private history are absent.
 - [ ] Record the demo video using only synthetic data and truthful evidence labels.
 - [ ] Publish the required X post and retain its public URL.

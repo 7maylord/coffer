@@ -1,5 +1,17 @@
 # Coffer frontend — Next.js (App Router)
 
+This is Coffer’s business workspace: the interface for verified revenue,
+treasury decisions, payroll preparation, policy approvals, finance-agent
+evidence, and wallet-authorized payment instructions. It is deliberately a
+control surface, not a custodial wallet: the browser requests a reviewed,
+canonical action and the connected NEAR wallet is the signer.
+
+NEAR Connect and `near-api-js` provide wallet connectivity and NEP-413 session
+authentication. The UI presents the AI CFO’s typed proposals, but policy and
+human approval—not model output—determine whether a financial action can move
+forward. NEAR Intents asset discovery and quote journeys are proxied through
+the backend so provider credentials never enter the browser.
+
 Requires Node.js 22.22.2+ or 24+.
 
 ```sh
@@ -77,3 +89,6 @@ and mobile widths into `../docs/design/screenshots`. See the
 [implementation plan](../docs/implementation-plan.md) for integration gaps.
 
 See the [NEAR frontend quickstart](https://docs.near.org/build/web3-apps/quickstart) and [Hello NEAR example](https://github.com/near-examples/hello-near-examples) for more details.
+
+This package is part of Coffer and is distributed under the repository’s
+[MIT License](../LICENSE).

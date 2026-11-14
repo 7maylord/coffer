@@ -1,5 +1,10 @@
 # Coffer policy factory
 
+The factory gives each Coffer business an isolated NEAR policy instance. That
+lets a multi-tenant finance operating system preserve per-business approval
+rules while using one reviewed policy implementation. It is an authorization
+factory—not a wallet, treasury, or payment executor.
+
 This NEAR contract creates one isolated, locked `near-policy` instance for each
 organization. It implements FR-ID-002/003, FR-POL-001–003, FR-APR-001/002,
 COF-301/302, ADR-0017, and contract milestone C-10 toward Gates G3/G4.
@@ -56,3 +61,5 @@ implementation is not authorization to publish or deploy it.
 Protocol references: [factory pattern](https://docs.near.org/web3-apps/tutorials/mastering-near/4-factory),
 [global contracts](https://docs.near.org/smart-contracts/global-contracts), and
 [account actions](https://docs.near.org/smart-contracts/anatomy/actions#create-a-sub-account).
+
+Licensed under the repository [MIT License](../../LICENSE).

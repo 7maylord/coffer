@@ -1,5 +1,9 @@
 # Coffer Test Dollar (`ctUSD`)
 
+`ctUSD` exists solely to exercise Coffer’s exact-amount NEP-141 transfer and
+reconciliation path in a safe test environment. It is deliberately separate
+from the business product and is never presented as a real stablecoin.
+
 This independent contract implements a test-only six-decimal NEP-141 fungible
 token for NEAR Sandbox and testnet settlement evidence. It has no monetary
 value, is not USDC, and is not supported by NEAR Intents unless a provider
@@ -51,3 +55,5 @@ Backend integration must verify the exact contract ID/code hash, metadata,
 `test_only` configuration, receiver registration, wallet-signed `ft_transfer`,
 final receipts, and NEP-141 event before settlement. ctUSD must never be labeled
 USDC or treated as a production asset.
+
+Licensed under the repository [MIT License](../../LICENSE).

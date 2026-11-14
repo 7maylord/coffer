@@ -1,5 +1,11 @@
 # Coffer contracts
 
+Coffer’s NEAR contracts are the shared authorization layer for its
+AI-native-finance workflow. They make the exact policy and approval state
+inspectable without turning the contracts into a treasury, payroll database, or
+agent wallet. The AI CFO can propose; the contracts bind the reviewed proposal
+digest and quorum that govern it.
+
 The contracts domain contains three independently buildable NEAR Rust projects:
 
 | Package | Purpose | Holds funds? |
@@ -44,3 +50,6 @@ later policy revisions through the approver quorum, unsigned wallet actions,
 and final settlement verification remain open. See the
 [factory deployment runbook](policy-factory/DEPLOYMENT_RUNBOOK.md). No contract
 should gain custody, provider, payroll, or application orchestration logic.
+
+All contract packages are distributed under the repository’s
+[MIT License](../LICENSE).

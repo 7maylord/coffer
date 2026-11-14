@@ -1,5 +1,10 @@
 # Coffer NEAR policy contract
 
+This contract is Coffer’s on-chain approval anchor. It gives the AI-native
+business a durable, inspectable boundary between a finance recommendation and
+an authorized action: a proposal is represented by its immutable digest, then
+approved by the configured human quorum.
+
 This non-custodial contract commits organization policy configuration, proposal
 digests, revisions, expiry, and distinct human approvals. It never stores
 payroll PII, invoice bodies, raw recipients, wallet secrets, or provider data,
@@ -60,3 +65,5 @@ approver key or bypass the configured quorum.
 Migration evidence limitation: V0 is a synthetic fixture, not a historical or
 deployed contract layout. The conversion test does not certify any real upgrade;
 a future upgrade must retain and test the exact deployed source layout.
+
+Licensed under the repository [MIT License](../../LICENSE).

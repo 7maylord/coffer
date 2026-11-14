@@ -1,6 +1,54 @@
 # Coffer
 
-Coffer is a NEAR-oriented finance operations prototype. The current foundation uses a Next.js frontend, a NestJS backend, PostgreSQL, Redis, and separate Rust/NEAR policy, policy-factory, and test-token contract packages. Reproducible policy, factory, and valueless `ctUSD` contracts are deployed on NEAR testnet. Settlement still defaults to **mock-only**; explicitly gated invoice and payroll paths return exact wallet transactions and independently verify final NEAR testnet evidence before crediting an invoice or ledger. Synthetic payroll is the only permitted demo payroll data.
+Coffer is an AI-native financial operating system for businesses. It turns the
+fragmented work of collecting revenue, planning treasury, paying a team, and
+moving value across chains into one governed operating loop:
+
+**earn → verify → analyze → constrain → approve → pay → reconcile.**
+
+An incoming invoice payment can create a finance-agent run. Coffer’s AI CFO
+reviews only the authorized financial evidence and returns a typed treasury or
+operational proposal. Deterministic policy then checks exact integer amounts,
+budgets, recipient allowlists, approval quorum, and expiry before an authorized
+person can sign an external transaction. AI never receives a wallet key, cannot
+change policy, cannot approve its own proposal, and cannot move money by itself.
+
+## Why NEAR
+
+Coffer uses NEAR as the trust layer for an AI-native business:
+
+- **NEAR wallets and NEP-413 authentication** give each business user a
+  cryptographic identity and retain user-controlled signing for consequential
+  actions.
+- **NEAR AI Cloud powers the AI CFO**: it produces constrained, schema-checked
+  financial recommendations from a minimal authorized context. Coffer verifies
+  the configured provider-TEE evidence and approved deployment identity before
+  accepting an inference result; an AI recommendation is still never payment
+  authority.
+- **NEAR policy contracts** bind immutable proposal digests and distinct
+  approvers. A factory creates an isolated policy instance for each business,
+  without placing treasury balances, salary records, or keys on-chain.
+- **NEAR Intents** is Coffer’s cross-chain execution interface: current asset
+  discovery, quoted outcomes, deposit instructions, status tracking, and
+  reconciliation are kept behind a typed settlement adapter.
+
+The result is autonomy in operations—not autonomous custody. Coffer helps a
+business act faster while preserving a clear, auditable human and policy
+boundary around money.
+
+## What is in this repository
+
+| Area | What it does |
+| --- | --- |
+| `frontend/` | Next.js workspace for invoice, treasury, payroll, AI CFO, policy, and audit workflows. |
+| `backend/` | NestJS API, tenant-scoped ledger, deterministic policy engine, reconciliation, API-owned outbox processing, and provider adapters. |
+| `contracts/` | Rust NEAR policy, per-business policy factory, and a valueless test-token package. |
+| `docs/` | Architecture decisions, API contract, runbooks, demo narrative, evidence, and submission material. |
+
+The repository includes reproducible policy, factory, and valueless `ctUSD`
+contracts deployed on NEAR testnet. The documented settlement proof verifies
+wallet-signed testnet actions and final chain evidence before an invoice or
+ledger can be credited. Demo payroll data is synthetic.
 
 ## Requirements
 
@@ -9,7 +57,7 @@ Coffer is a NEAR-oriented finance operations prototype. The current foundation u
 - Docker with Compose
 - Rust 1.93.1 and `cargo-near` 0.22.0 for the contract packages
 
-## Start locally
+## Run locally
 
 ```bash
 nvm use
@@ -146,3 +194,27 @@ Supported scenarios are `success`, `refund`, `unknown`, `partial_deposit`, `expi
 Research findings, provider assumptions, and architecture decisions are in [`docs/research-onboarding.md`](docs/research-onboarding.md), [`docs/provider-matrix.md`](docs/provider-matrix.md), and [`docs/adr/0001-local-foundation.md`](docs/adr/0001-local-foundation.md).
 
 The selected delivery sequence and milestone gates are documented in [`docs/implementation-plan.md`](docs/implementation-plan.md). Contract-first scope and its non-custodial boundary are recorded in [`docs/adr/0002-contract-first-delivery.md`](docs/adr/0002-contract-first-delivery.md). Direct NEAR testnet settlement and the separate valueless NEP-141 test asset are recorded in [`docs/adr/0003-testnet-payment-fallback.md`](docs/adr/0003-testnet-payment-fallback.md) and [`docs/adr/0004-test-token.md`](docs/adr/0004-test-token.md).
+
+## Hackathon, provenance, and license
+
+Coffer was built for **NEAR Hackathon 2026**. The project’s core product,
+frontend, API, contracts, and integration work are in this repository. The
+initial repository foundation was committed on October 22, 2026; the complete
+commit history is available for review. We use open-source libraries and
+developer AI assistance in the normal course of development; all project source
+and integration code is reviewable here.
+
+This project is available under the [MIT License](LICENSE). The NEAR Hackathon
+rules permit any license and specifically identify MIT as acceptable; the
+repository must remain public through judging. See [HACKATHON.md](HACKATHON.md)
+and the [submission checklist](docs/submission-checklist.md) for the remaining
+owner-controlled submission checks.
+
+## Scope and safety
+
+Coffer is non-custodial: the API does not retain user wallet keys and no AI
+output can create an unrestricted transfer. Network execution, provider
+credentials, and production rollout remain deliberately gated through
+environment configuration and human authorization. See the documented
+provider boundaries in [docs/provider-matrix.md](docs/provider-matrix.md) and
+the technical requirements in [COFFER_PRD_TRD.md](COFFER_PRD_TRD.md).
