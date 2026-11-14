@@ -110,7 +110,6 @@ jobs:
       - run: cargo clippy --manifest-path contracts/near-policy/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo clippy --manifest-path contracts/test-token/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo clippy --manifest-path contracts/policy-factory/Cargo.toml --all-targets --locked -- -D warnings
-      - run: cargo install cargo-near --version 0.22.0 --locked
       - run: cargo test --manifest-path contracts/near-policy/Cargo.toml --locked
       - run: cargo check --manifest-path contracts/near-policy/Cargo.toml --target wasm32-unknown-unknown --locked
       - run: cargo test --manifest-path contracts/test-token/Cargo.toml --locked
