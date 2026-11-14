@@ -191,7 +191,8 @@ Supported scenarios are `success`, `refund`, `unknown`, `partial_deposit`, `expi
 - salary values are encrypted in the synthetic seed; the ephemeral seed key is discarded
 - PostgreSQL settlement persistence, the transactional outbox, and reconciliation are authoritative; wallet or frontend success text is never settlement evidence
 
-Research findings, provider assumptions, and architecture decisions are in [`docs/research-onboarding.md`](docs/research-onboarding.md), [`docs/provider-matrix.md`](docs/provider-matrix.md), and [`docs/adr/0001-local-foundation.md`](docs/adr/0001-local-foundation.md).
+The [documentation index](docs/README.md) links the product plan, provider
+matrix, architecture decisions, evidence, pitch, and submission material.
 
 The selected delivery sequence and milestone gates are documented in [`docs/implementation-plan.md`](docs/implementation-plan.md). Contract-first scope and its non-custodial boundary are recorded in [`docs/adr/0002-contract-first-delivery.md`](docs/adr/0002-contract-first-delivery.md). Direct NEAR testnet settlement and the separate valueless NEP-141 test asset are recorded in [`docs/adr/0003-testnet-payment-fallback.md`](docs/adr/0003-testnet-payment-fallback.md) and [`docs/adr/0004-test-token.md`](docs/adr/0004-test-token.md).
 

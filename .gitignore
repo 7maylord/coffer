@@ -15,5 +15,6 @@ contracts/target/
 *.pem
 *.key
 *.log
+docs/pitch-deck-script.pdf
 *.tsbuildinfo
 .DS_Store
